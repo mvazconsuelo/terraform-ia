@@ -144,6 +144,8 @@ jobs:
     name: Checkov
     if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
+    outputs:
+      failed: ${{ steps.scan.outputs.failed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -153,14 +155,18 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install -q pyyaml checkov
       - name: scan the modules this PR affects
+        id: scan
         env:
           BASE: origin/${{ github.base_ref }}
         run: |
           args=()
           while read -r d; do [ -n "$d" ] && args+=(-d "$d"); done < <(PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --modules)
-          if [ "${#args[@]}" -eq 0 ]; then echo "No module affected; nothing to scan."; exit 0; fi
-          # --soft-fail is TEMPORARY: the findings are listed but do not block; decide skip checks or fixes, then remove it
-          checkov "${args[@]}" --framework terraform --compact --soft-fail
+          if [ "${#args[@]}" -eq 0 ]; then echo "No module affected; nothing to scan."; echo "failed=0" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # --soft-fail is TEMPORARY: the findings are listed but do not block; decide skip checks or fixes, then remove it.
+          # The number of findings is passed to the review so the comment does not show a clean PASS.
+          checkov "${args[@]}" --framework terraform --compact --soft-fail 2>&1 | tee checkov.log
+          failed=$(grep -oE 'Failed checks: [0-9]+' checkov.log | awk '{s += $3} END {print s + 0}')
+          echo "failed=${failed}" >> "$GITHUB_OUTPUT"
 
   contract:
     name: repository contract
@@ -226,6 +232,7 @@ jobs:
           R_TEST: ${{ needs.test.result }}
           R_TFLINT: ${{ needs.tflint.result }}
           R_CHECKOV: ${{ needs.checkov.result }}
+          R_CHECKOV_FAILED: ${{ needs.checkov.outputs.failed }}
           R_CONTRACT: ${{ needs.contract.result }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
           MATRIX: ${{ needs.discover.outputs.matrix }}
@@ -234,7 +241,13 @@ jobs:
         run: |
           ARGS=(--base "$BASE" --branch "$BASE_REF" --out review.json --markdown review.md --pr-title "$PR_TITLE" --pr-body "$PR_BODY")
           ARGS+=(--check "terraform fmt=$R_FMT" --check "terraform validate=$R_VALIDATE" --check "terraform test=$R_TEST")
-          ARGS+=(--check "TFLint=$R_TFLINT" --check "Checkov=$R_CHECKOV" --check "repository contract=$R_CONTRACT")
+          ARGS+=(--check "TFLint=$R_TFLINT" --check "repository contract=$R_CONTRACT")
+          # Checkov is non-blocking for now: with findings it is reported as a warning, never as a clean pass
+          if [ "$R_CHECKOV" = "success" ] && [ "${R_CHECKOV_FAILED:-0}" != "0" ]; then
+            ARGS+=(--check "Checkov (${R_CHECKOV_FAILED} findings, non-blocking)=warning")
+          else
+            ARGS+=(--check "Checkov=$R_CHECKOV")
+          fi
           # one plan and one cost estimate per affected configuration, keyed by the root path
           while IFS='|' read -r root slug; do
             [ -f "plans/plan-$slug.json" ] && ARGS+=(--plan "$root=plans/plan-$slug.json")

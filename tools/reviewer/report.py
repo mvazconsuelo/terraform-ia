@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 MARKER = "<!-- terra-review -->"
-STATUS_LABEL = {"success": "✅ PASS", "failure": "❌ FAIL", "cancelled": "⏹️ CANCELLED", "skipped": "⏭️ SKIPPED"}
+STATUS_LABEL = {"success": "✅ PASS", "warning": "⚠️ FINDINGS", "failure": "❌ FAIL", "cancelled": "⏹️ CANCELLED", "skipped": "⏭️ SKIPPED"}
 MANDATORY_TAGS = ["Environment", "Owner", "CostCenter", "Project"]
 STANDARD_CATEGORIES = ("MODULE_STANDARD", "ARCHITECTURE")
 SEVERITY_ROWS = [("CRITICAL", "Critical"), ("HIGH", "High"), ("MEDIUM", "Medium"), ("LOW", "Low"), ("INFO", "Informational")]
@@ -96,6 +96,9 @@ def _checks(checks: Dict[str, str]) -> List[str]:
     ran = [s for s in checks.values() if s != "skipped"]
     passed = sum(1 for s in ran if s == "success")
     result = "**Result:** {}/{} checks passed.".format(passed, len(ran)) if ran else "**Result:** no check ran."
+    warned = sum(1 for s in ran if s == "warning")
+    if warned:
+        result += " {} with findings that do not block.".format(warned)
     skipped = len(checks) - len(ran)
     if skipped:
         result += " {} skipped.".format(skipped)
@@ -191,8 +194,9 @@ def _cost(costs: Dict[str, dict]) -> List[str]:
         delta = c.get("monthly_delta")
         if multi:
             out += ["### `{}`".format(root), ""]
+        partial = any(not r.get("monthly_cost") for r in c.get("resources") or []) or bool((c.get("summary") or {}).get("unsupported_types"))
         if delta is not None:
-            out += ["**Estimated monthly change: {}**".format(_money(delta, True)), ""]
+            out += ["**Estimated monthly change{}: {}**".format(" (priced resources only)" if partial else "", _money(delta, True)), ""]
         out += ["Current {}/month → proposed {}/month.".format(_money(c.get("current_monthly_cost")), _money(c.get("proposed_monthly_cost"))), ""]
         resources = c.get("resources")
         if resources is None:  # an older summary without the full list

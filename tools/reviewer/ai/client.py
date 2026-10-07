@@ -5,11 +5,14 @@ The rest of the AI layer depends on the tiny `AIClient` protocol, so tests injec
 from __future__ import annotations
 
 import json
+import time
 import os
 import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, Optional, Protocol
 
+TRANSIENT_HTTP = (500, 502, 503, 504)  # temporary overload or server errors; 404 and 429 are not retried
+RETRY_DELAYS = (5, 15)  # seconds to wait before the second and the third attempt
 DEFAULT_MODEL = "gemini-3.8-flash"  # stable Flash model with a free tier; Google retires old names for new users, override with the GEMINI_MODEL secret
 ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
@@ -51,15 +54,21 @@ class GeminiClient:
             data=json.dumps(body).encode(),
             headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
         )
-        try:
-            with self._open(req, timeout=self.timeout) as resp:
-                data = json.load(resp)
-        except urllib.error.HTTPError as e:
-            raise AIError("Gemini HTTP {}: {}".format(e.code, e.read().decode(errors="replace")[:300]))
-        except urllib.error.URLError as e:
-            raise AIError("Gemini request failed: {}".format(e.reason))
-        except (OSError, ValueError) as e:
-            raise AIError("Gemini request failed: {}".format(e))
+        data: Dict[str, Any] = {}
+        for attempt, delay in enumerate(RETRY_DELAYS + (None,)):
+            try:
+                with self._open(req, timeout=self.timeout) as resp:
+                    data = json.load(resp)
+                break
+            except urllib.error.HTTPError as e:
+                if e.code in TRANSIENT_HTTP and delay is not None:  # "high demand" spikes pass: wait and try again
+                    time.sleep(delay)
+                    continue
+                raise AIError("Gemini HTTP {}: {}".format(e.code, e.read().decode(errors="replace")[:300]))
+            except urllib.error.URLError as e:
+                raise AIError("Gemini request failed: {}".format(e.reason))
+            except (OSError, ValueError) as e:
+                raise AIError("Gemini request failed: {}".format(e))
         try:
             return data["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, TypeError):
