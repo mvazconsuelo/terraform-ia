@@ -6,7 +6,7 @@ evidence and write one executive summary a human can read in place of the whole 
 ## What you receive
 One JSON document with:
 - `review`: the final `risk` (INFO, LOW, MEDIUM, HIGH, CRITICAL), the `decision` (PASS or REQUEST_CHANGES), the
-  `decision_reasons`, how many contract rules were evaluated and how many were violated. May be missing.
+  `decision_reasons`, the `target` (branch, environment and the end of the AWS account number this change lands on), how many contract rules were evaluated and how many were violated. May be missing.
 - `repository_context` and `architecture_context`: what this repository is, which Terraform root configurations exist,
   which modules they use, and `affected_configurations`: the configurations this change touches and why.
 - `pull_request`: the title and description the author wrote (the stated intent). May be null.
@@ -39,7 +39,7 @@ You have no tools, no filesystem and no credentials: you only read this document
 ## What to write
 `summary`: markdown, compact, written for a reviewer who will read only this. Short paragraphs, no headings, no
 tables, no bullet lists unless a few items really need them. In this order, skipping what has no data:
-1. What the PR changes and which configurations it affects (name them by their path; say what the author intended if
+1. What the PR changes, the environment it lands on (`review.target`) and which configurations it affects (name them by their path; say what the author intended if
    the description says so, and whether the plan matches it).
 2. The checks: how many passed, which failed or were skipped, and whether the governance, module-standard and
    repository-contract results are clean.

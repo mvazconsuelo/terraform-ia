@@ -110,6 +110,20 @@ def discover(repo: Repo, changed: Optional[List[str]], branch: Optional[str] = N
 # ----------------------------------------------------------------------------------------------------------------
 # One review
 # ----------------------------------------------------------------------------------------------------------------
+def target_of(repo: Repo, branch: Optional[str], production: bool) -> Optional[Dict[str, Any]]:
+    """Where this change lands: the target branch, whether it is production and the AWS account of that branch's keys
+    (terraform.accounts in common.yaml; main uses its own account, every other branch uses develop's, as the pipeline does)."""
+    if not branch:
+        return None
+    account = str((repo.cfg["accounts"] or {}).get("main" if branch == "main" else "develop") or "")
+    placeholder = account.startswith("<") or not account
+    return {
+        "branch": branch,
+        "environment": "production" if production else "non-production",
+        "account": None if placeholder else "****" + account[-4:],
+    }
+
+
 def review(
     root: str,
     changed: List[Dict[str, str]],
@@ -127,6 +141,7 @@ def review(
     repo, rules = Repo(root), load_rules()
     if production:  # the PR targets the production branch: every configuration in it is protected
         repo.cfg["protected"] = ["**"]
+    target = target_of(repo, branch, production)
     affected = for_branch(repo, repo.affected([c["path"] for c in changed]) if changed else [{"root": r, "reasons": ["whole repository reviewed"]} for r in repo.roots()], branch)
 
     # 1. the authority: findings, risk, verdict
@@ -147,7 +162,7 @@ def review(
             status["reason"] = "GEMINI_API_KEY is not set"
         else:
             try:
-                analysis = ai_reviewer.review(client, root, changed, findings, plans, costs, checks, pr, rules, affected, {"risk": risk, "decision": verdict["decision"], "reasons": verdict["reasons"]})
+                analysis = ai_reviewer.review(client, root, changed, findings, plans, costs, checks, pr, rules, affected, {"risk": risk, "decision": verdict["decision"], "reasons": verdict["reasons"], "target": target})
                 status = {"requested": True, "executed": True, "reason": None, "model": getattr(client, "model", None)}
             except AIError as e:
                 status["reason"] = "The AI step failed and was skipped: {}".format(str(e)[:200])
@@ -159,6 +174,7 @@ def review(
         "findings": [f.to_dict() for f in findings],
         "ai_analysis": analysis,
         "ai_status": status,
+        "target": target,
         "affected": affected,
         "changed_files": [{"path": c["path"], "status": c.get("status", "modified")} for c in changed],
         "rules_evaluated": len(rules),
@@ -292,7 +308,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         repo = Repo(root)
         affected = for_branch(repo, repo.affected([c["path"] for c in changed]), args.branch)
         verdict = decide(findings, checks)
-        verdict = {"risk": max_severity(findings), "decision": verdict["decision"], "reasons": verdict["reasons"]}
+        verdict = {"risk": max_severity(findings), "decision": verdict["decision"], "reasons": verdict["reasons"], "target": target_of(repo, args.branch, args.production)}
         print(json.dumps(ai_reviewer.build_payload(root, evidence, rules, affected, verdict), indent=2))
         return 0
 

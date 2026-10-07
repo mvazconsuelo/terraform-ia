@@ -169,7 +169,7 @@ _FILE_REF = re.compile(r'path\.module\}/([^"\)]+)|(?:file|templatefile)\(\s*"(\.
 _PROVIDER = re.compile(r'^\s*provider\s+"', re.MULTILINE)
 _BACKEND = re.compile(r'^\s*backend\s+"', re.MULTILINE)
 
-CONFIG_DEFAULTS: Dict[str, Any] = {"roots": None, "modules": ["modules"], "protected": [], "deploy": {}, "conventions": {}}
+CONFIG_DEFAULTS: Dict[str, Any] = {"roots": None, "modules": ["modules"], "protected": [], "deploy": {}, "accounts": {}, "conventions": {}}
 
 
 def slug(path: str) -> str:

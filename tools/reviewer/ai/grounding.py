@@ -29,7 +29,7 @@ def allowed_amounts(costs: Dict[str, Dict[str, Any]]) -> List[float]:
             v = c.get(key)
             if isinstance(v, (int, float)):
                 nums += [float(v), abs(float(v))]
-        for d in c.get("top_cost_drivers", []):
+        for d in list(c.get("top_cost_drivers", [])) + list(c.get("resources", [])):
             if isinstance(d.get("monthly_cost"), (int, float)):
                 nums.append(float(d["monthly_cost"]))
     return nums

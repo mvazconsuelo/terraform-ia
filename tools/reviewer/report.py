@@ -81,17 +81,6 @@ def _affected(affected: List[Dict[str, Any]], changed: List[Dict[str, Any]]) -> 
     return out[:-1] if out and out[-1] == "" else out
 
 
-def _changed_files(changed: List[Dict[str, Any]]) -> List[str]:
-    if not changed:
-        return ["_No changed files were provided._"]
-    rows = ["| File | Change |", "|---|---|"]
-    for c in changed[:MAX_LIST]:
-        rows.append("| `{}` | {} |".format(c["path"], str(c.get("status") or "modified").capitalize()))
-    if len(changed) > MAX_LIST:
-        rows.append("| _... and {} more_ | |".format(len(changed) - MAX_LIST))
-    return rows
-
-
 def _checks(checks: Dict[str, str]) -> List[str]:
     if not checks:
         return ["_No check results were provided._"]
@@ -194,11 +183,36 @@ def _cost(costs: Dict[str, dict]) -> List[str]:
         if delta is not None:
             out += ["**Estimated monthly change: {}**".format(_money(delta, True)), ""]
         out += ["Current {}/month → proposed {}/month.".format(_money(c.get("current_monthly_cost")), _money(c.get("proposed_monthly_cost"))), ""]
-        drivers = c.get("top_cost_drivers") or []
-        if drivers:
-            out += ["| Resource | Monthly cost |", "|---|---:|"] + ["| `{}` | {} |".format(d["resource"], _money(d["monthly_cost"])) for d in drivers[:5]] + [""]
+        resources = c.get("resources")
+        if resources is None:  # an older summary without the full list
+            resources = [{"resource": d["resource"], "monthly_cost": d["monthly_cost"]} for d in c.get("top_cost_drivers") or []]
+        priced = [r for r in resources if r.get("monthly_cost")]
+        usage = [r for r in resources if not r.get("monthly_cost")]
+        proposed = c.get("proposed_monthly_cost")
+        if resources:
+            shown = priced[:8]
+            rows = ["| Resource | Monthly cost |", "|---|---:|"] + ["| `{}` | {} |".format(r["resource"], _money(r["monthly_cost"])) for r in shown]
+            if proposed is not None:
+                rest = proposed - sum(r["monthly_cost"] for r in shown)
+                if rest > 0.005:
+                    rows.append("| Other priced resources | {} |".format(_money(rest)))
+            rows += ["| `{}` | usage-based, not estimated |".format(r["resource"]) for r in usage[:8]]
+            if len(usage) > 8:
+                rows.append("| _... and {} more usage-based_ | |".format(len(usage) - 8))
+            if proposed is not None:
+                rows.append("| **Total (proposed)** | **{}** |".format(_money(proposed)))
+            out += rows + [""]
+        sm = c.get("summary") or {}
+        notes = []
+        for key, label in (("unsupported_types", "Not supported by Infracost"), ("no_price_types", "No price (free, or not priced)")):
+            types = sm.get(key) or {}
+            if types:
+                notes.append("{}: {}".format(label, ", ".join("`{}` ×{}".format(t, n) for t, n in sorted(types.items())[:8])))
+        if notes:
+            out += ["> ℹ️ Resources without a price are not part of this total. " + "; ".join(notes) + ".", ""]
         if delta is not None:
-            out += ["**Annualized impact:** {}".format(_money(delta * 12, True)), ""]
+            # from the rounded monthly figure shown above, so the two numbers always agree
+            out += ["**Annualized impact:** {}".format(_money(round(delta, 2) * 12, True)), ""]
     return out[:-1]
 
 
@@ -268,13 +282,20 @@ def _decision(review: Dict[str, Any]) -> List[str]:
     return out + ["", "*This reviewer does not approve, merge, or apply infrastructure.*"]
 
 
+def _target(target: Any) -> str:
+    """Which environment this change lands on; empty line when the target branch is unknown (a local run)."""
+    if not target:
+        return "**Environment:** unknown (no target branch given)  "
+    account = " · AWS account `{}`".format(target["account"]) if target.get("account") else " · AWS account not configured in `common.yaml`"
+    return "**Environment:** `{}` ({}){}  ".format(target["branch"], target["environment"], account)
+
+
 def render_markdown(review: Dict[str, Any]) -> str:
     plans, costs, findings = review.get("plans", {}), review.get("costs", {}), review["findings"]
     changed = review.get("changed_files", [])
     sections = [
         _ai_summary(review),
         ["## Affected Terraform configurations", ""] + _affected(review.get("affected", []), changed),
-        ["## Changed files", ""] + _changed_files(changed),
         ["## Validation & Tests", ""] + _checks(review.get("checks", {})),
         ["## Terraform Plan", ""] + _plan(plans),
         ["## Resource Changes", ""] + _resource_changes(plans),
@@ -287,7 +308,8 @@ def render_markdown(review: Dict[str, Any]) -> str:
         ["## Review Decision", ""] + _decision(review),
     ]
     lines = [MARKER, "# Infrastructure Review", "",
-             "**Risk:** {} · **Decision:** {}".format(review["risk"], review["decision"]),
+             "**Risk:** {} · **Decision:** {}  ".format(review["risk"], review["decision"]),
+             _target(review.get("target")),
              "*This reviewer cannot approve, merge, or apply infrastructure.*", "", "---", ""]
     for i, section in enumerate(sections):
         lines += section

@@ -171,6 +171,7 @@ def build_payload(
             "risk": verdict.get("risk"),
             "decision": verdict.get("decision"),
             "decision_reasons": verdict.get("reasons") or [],
+            "target": verdict.get("target"),
             "rules_evaluated": len(rules),
             "rules_violated": len([f for f in findings if f.get("rule_id")]),
         }
