@@ -1,0 +1,202 @@
+name: pull-request
+
+# One workflow per PR. External tools and code do the judging: terraform (fmt, validate, test), TFLint, Checkov, the
+# repository contract (tools/reviewer) and a read-only plan of every Terraform configuration the PR affects. The final job builds ONE comment from those
+# results. Its optional AI section only explains the evidence (intent vs plan) and can never change the verdict.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    name: terraform fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
+      - run: terraform fmt -check -recursive
+
+  # Which Terraform root configurations this PR affects (edited, or using a changed shared module or file). Everything
+  # below that touches a configuration runs only for these; the others are not initialised, planned or validated.
+  discover:
+    name: affected configurations
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.d.outputs.matrix }}
+      count: ${{ steps.d.outputs.count }}
+      roots: ${{ steps.d.outputs.roots }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml
+      - id: d
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          matrix=$(PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --format matrix)
+          {
+            echo "matrix=$matrix"
+            echo "count=$(printf '%s' "$matrix" | jq '.include | length')"
+            echo "roots=$(printf '%s' "$matrix" | jq -r '[.include[].root] | join(" ")')"
+          } >> "$GITHUB_OUTPUT"
+          PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --format text >> "$GITHUB_STEP_SUMMARY"
+
+  validate:
+    name: terraform validate
+    needs: discover
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
+      - name: validate every module and every affected configuration
+        env:
+          ROOTS: ${{ needs.discover.outputs.roots }}
+        run: |
+          set -euo pipefail
+          for d in $(find modules -name versions.tf -not -path '*/.terraform/*' -exec dirname {} \;) $ROOTS; do
+            echo "== validate $d"
+            (cd "$d" && terraform init -backend=false -input=false >/dev/null && terraform validate)
+          done
+
+  test:
+    name: terraform test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
+      - name: test every module (mocked provider, no credentials)
+        run: |
+          set -euo pipefail
+          for d in $(find modules -type d -name tests -not -path '*/.terraform/*' -exec dirname {} \;); do
+            echo "== test $d"
+            (cd "$d" && terraform init -backend=false -input=false >/dev/null && terraform test)
+          done
+
+  tflint:
+    name: TFLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: terraform-linters/setup-tflint@v4
+      - run: |
+          tflint --init
+          tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl"
+
+  checkov:
+    name: Checkov
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: modules
+          framework: terraform
+          soft_fail: false
+
+  contract:
+    name: repository contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml
+      - name: organisation rules (tools/reviewer/rules.yaml)
+        run: PYTHONPATH=tools python -m reviewer.engine check --all
+
+  # Read-only plan of each affected configuration (the AWS keys of the GitHub Environment `<name>-plan`). Not for forks:
+  # they get no secrets. Nothing runs when no configuration is affected.
+  plan:
+    name: plan ${{ matrix.root }}
+    needs: discover
+    if: github.event.pull_request.head.repo.fork == false && needs.discover.outputs.count != '0'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    uses: ./.github/workflows/terraform.yml
+    with:
+      root: ${{ matrix.root }}
+      slug: ${{ matrix.slug }}
+      environment: ${{ matrix.plan_environment }}
+      mode: plan
+    secrets: inherit
+
+  review:
+    name: PR comment
+    needs: [discover, fmt, validate, test, tflint, checkov, contract, plan]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: plan-*
+          merge-multiple: true
+          path: plans
+      - name: review
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}      # Settings > Secrets and variables > Actions > Secrets
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}              # ... > Variables (not secret; empty falls back to the default)
+          BASE: origin/${{ github.base_ref }}
+          # Author-written text goes through the environment, never interpolated into the script.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          R_FMT: ${{ needs.fmt.result }}
+          R_VALIDATE: ${{ needs.validate.result }}
+          R_TEST: ${{ needs.test.result }}
+          R_TFLINT: ${{ needs.tflint.result }}
+          R_CHECKOV: ${{ needs.checkov.result }}
+          R_CONTRACT: ${{ needs.contract.result }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+          MATRIX: ${{ needs.discover.outputs.matrix }}
+        run: |
+          ARGS=(--base "$BASE" --out review.json --markdown review.md --pr-title "$PR_TITLE" --pr-body "$PR_BODY")
+          ARGS+=(--check "terraform fmt=$R_FMT" --check "terraform validate=$R_VALIDATE" --check "terraform test=$R_TEST")
+          ARGS+=(--check "TFLint=$R_TFLINT" --check "Checkov=$R_CHECKOV" --check "repository contract=$R_CONTRACT")
+          # one plan and one cost estimate per affected configuration, keyed by the root path
+          while IFS='|' read -r root slug; do
+            [ -f "plans/plan-$slug.json" ] && ARGS+=(--plan "$root=plans/plan-$slug.json")
+            [ -f "plans/cost-$slug.json" ] && ARGS+=(--infracost "$root=plans/cost-$slug.json")
+          done < <(printf '%s' "$MATRIX" | jq -r '.include[] | "\(.root)|\(.slug)"')
+          # The AI step is optional: off unless common.yaml sets ai.enabled and a key exists; never for forks (no secrets).
+          [ "$IS_FORK" = "true" ] && ARGS+=(--no-ai)
+          PYTHONPATH=tools python -m reviewer.engine review "${ARGS[@]}" || true   # the jobs above are the gate
+          cat review.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: sticky PR comment (fork PRs only get the job summary)
+        if: github.event.pull_request.head.repo.fork == false
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('review.md', 'utf8');
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find(c => c.body && c.body.includes('<!-- terra-review -->'));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });

@@ -1,0 +1,134 @@
+# PROD environment: a single Terraform configuration (environments/prod/main.tf) reads this file.
+# Block-style YAML only (no braces, no inline lists). Values are validated by the modules' typed inputs.
+# Project and region are in the repo-root common.yaml; the mandatory tags are project + the three values below.
+
+environment: prod # must equal this folder's name (rule TF-005)
+owner: platform-team
+cost_center: cc-1234
+
+# Application and database ports. Single definition: used by the security groups, the target group, the database and the instances.
+ports:
+  app: 8080
+  db: 5432
+
+network:
+  cidr_block: 10.30.0.0/16
+  nat_gateway_mode: per_az
+  availability_zones:
+    - us-east-1a
+    - us-east-1b
+  public_subnet_cidrs:
+    - 10.30.0.0/24
+    - 10.30.1.0/24
+  private_subnet_cidrs:
+    - 10.30.10.0/24
+    - 10.30.11.0/24
+
+security_groups:
+  alb:
+    description: Application load balancer
+    allow_public_ingress: true
+    ingress:
+      http:
+        description: HTTP (redirected to HTTPS)
+        port: http
+        cidr_ipv4: 0.0.0.0/0
+      https:
+        description: HTTPS from the internet
+        port: https
+        cidr_ipv4: 0.0.0.0/0
+    egress:
+      to_app:
+        description: Forward to the app tier
+        port: app
+        cidr_ipv4: vpc
+  app:
+    description: Application instances
+    ingress:
+      from_alb:
+        description: Traffic from the ALB
+        port: app
+        source_sg: alb
+    egress:
+      https_out:
+        description: HTTPS to AWS APIs and package mirrors via NAT
+        port: https
+        cidr_ipv4: 0.0.0.0/0
+      to_db:
+        description: Database traffic
+        port: db
+        cidr_ipv4: vpc
+  db:
+    description: Aurora database
+    ingress:
+      from_app:
+        description: Database traffic from the app tier
+        port: db
+        source_sg: app
+
+database:
+  engine: postgresql
+  engine_version: "16.4"
+  database_name: shop
+  instance_class: db.r6g.large
+  backup_retention_days: 14
+  deletion_protection: true
+  skip_final_snapshot: false
+  instances:
+    "1":
+      promotion_tier: 0
+    "2":
+      promotion_tier: 1
+  cluster_parameters:
+    rds.force_ssl:
+      value: "1"
+
+alb:
+  internal: false
+  deletion_protection: true
+  target_groups:
+    web:
+      port: app
+      target_type: instance
+      health_check_path: /health
+  listeners:
+    http:
+      port: 80
+      protocol: HTTP
+      default_action:
+        type: redirect
+        redirect:
+          port: "443"
+          protocol: HTTPS
+          status_code: HTTP_301
+    https:
+      port: 443
+      protocol: HTTPS
+      certificate_arn: arn:aws:acm:us-east-1:111122223333:certificate/REPLACE-WITH-YOUR-CERTIFICATE-ID # placeholder
+      default_action:
+        type: forward
+        target_group: web
+
+instance_role:
+  create_instance_profile: true
+  allow_read_db_secret: true
+  assume_role_services:
+    - ec2.amazonaws.com
+  managed_policy_arns:
+    - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+compute:
+  target_group: web # ALB target group (alb.target_groups) the Auto Scaling Group registers with
+  instance_type: m6i.large
+  ami_id: null # pin an AMI id before going to production
+  root_volume_size_gb: 30
+  min_size: 2
+  desired_size: 2
+  max_size: 6
+  health_check_type: ELB
+  health_check_grace_period: 300
+  enable_instance_refresh: true
+  scaling_policies:
+    cpu:
+      predefined_metric: ASGAverageCPUUtilization
+      target_value: 55

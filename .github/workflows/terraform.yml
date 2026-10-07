@@ -1,0 +1,230 @@
+name: terraform
+
+# Everything that touches AWS, in one workflow, for ANY Terraform root configuration (a folder with its own state):
+# infra/web, terraform/networking, environments/dev ... The folder names come from common.yaml (`terraform:`), not from here.
+# The `target` job decides what to run from the event, with the deterministic discovery of tools/reviewer
+# (which configurations a change affects, including the ones that only use a changed shared module):
+#   called by pull-request.yml ....... read-only plan of one configuration (its summary feeds the PR comment)
+#   PR approved ...................... apply the affected configurations listed in terraform.deploy.on_pr_approved
+#   push to main ..................... apply the affected configurations listed in terraform.deploy.on_merge_to_main
+#   manual (workflow_dispatch) ....... plan or apply one configuration (first deployment, recovery)
+# Configurations nothing touched are never initialised, planned or applied. Per configuration: init -> plan -> (apply).
+# State: one per configuration, key <root>/terraform.tfstate, in the bucket <project>-tfstate-<account>-<region>
+# (created on the first apply). Needs `yq` (mikefarah), `jq` and the AWS CLI, preinstalled on ubuntu-latest runners.
+on:
+  workflow_call:
+    inputs:
+      root:
+        description: Terraform root configuration (a folder path)
+        required: true
+        type: string
+      slug:
+        description: Artifact-safe name of the root
+        required: true
+        type: string
+      environment:
+        description: GitHub Environment holding the AWS secrets (read-only keys for plans)
+        required: true
+        type: string
+      mode:
+        description: plan or apply
+        required: true
+        type: string
+  pull_request_review:
+    types: [submitted]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      root:
+        description: Terraform root configuration (folder path, e.g. infra/web)
+        type: string
+        required: true
+      mode:
+        description: plan or apply
+        type: choice
+        options: [plan, apply]
+        default: plan
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  target:
+    name: decide what to run
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.t.outputs.run }}
+      matrix: ${{ steps.t.outputs.matrix }}
+      ref: ${{ steps.t.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.review.commit_id || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml
+      - id: t
+        env:
+          EVENT: ${{ github.event_name }}
+          CALL_ROOT: ${{ inputs.root }}
+          CALL_SLUG: ${{ inputs.slug }}
+          CALL_ENV: ${{ inputs.environment }}
+          CALL_MODE: ${{ inputs.mode }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+          REVIEW_COMMIT: ${{ github.event.review.commit_id }}
+          REVIEW_ASSOC: ${{ github.event.review.author_association }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          engine() { PYTHONPATH=tools python -m reviewer.engine "$@"; }
+          run=true; ref="$SHA"; deploy=""; base=""; matrix='{"include":[]}'
+          case "$EVENT" in
+            pull_request)            # called by pull-request.yml: it already discovered the configuration
+              matrix=$(jq -nc --arg r "$CALL_ROOT" --arg s "$CALL_SLUG" --arg e "$CALL_ENV" --arg m "$CALL_MODE" '{include:[{root:$r,slug:$s,environment:$e,mode:$m}]}') ;;
+            pull_request_review)     # approved PR: only the approved commit, only from this repository
+              ref="$REVIEW_COMMIT"; deploy=on_pr_approved; base="$PR_BASE_SHA"
+              if [ "$REVIEW_STATE" != "approved" ] || [ "$IS_FORK" = "true" ] || [ "$REVIEW_COMMIT" != "$HEAD_SHA" ]; then run=false; fi
+              case "$REVIEW_ASSOC" in OWNER|MEMBER|COLLABORATOR) ;; *) run=false ;; esac ;;
+            push)                    # merge to main
+              deploy=on_merge_to_main; base="$BEFORE"
+              case "$base" in 0000000*) base="HEAD~1" ;; esac ;;
+            workflow_dispatch)
+              all=$(engine discover --all --format matrix)
+              matrix=$(printf '%s' "$all" | jq -c --arg r "$CALL_ROOT" --arg m "$CALL_MODE" \
+                '{include:[.include[] | select(.root==$r) | {root,slug,mode:$m,environment:(if $m=="apply" then .github_environment else .plan_environment end)}]}') ;;
+            *) echo "::error::unexpected event $EVENT"; exit 1 ;;
+          esac
+          if [ -n "$deploy" ] && [ "$run" = "true" ]; then
+            found=$(engine discover --base "$base" --deploy "$deploy" --format matrix)
+            matrix=$(printf '%s' "$found" | jq -c '{include:[.include[] | {root,slug,mode:"apply",environment:.github_environment}]}')
+          fi
+          if [ "$(printf '%s' "$matrix" | jq '.include | length')" = "0" ]; then
+            run=false
+            echo "::notice::No Terraform configuration to run for this event."
+          fi
+          { echo "run=$run"; echo "ref=$ref"; echo "matrix=$matrix"; } >> "$GITHUB_OUTPUT"
+
+  run:
+    name: ${{ matrix.mode }} ${{ matrix.root }}
+    needs: target
+    if: needs.target.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1 # configurations may depend on each other (networking before workloads): apply them in order
+      matrix: ${{ fromJSON(needs.target.outputs.matrix) }}
+    environment: ${{ matrix.environment }}
+    env:
+      HAS_INFRACOST: ${{ secrets.INFRACOST_API_KEY != '' }}
+    concurrency:
+      group: terraform-${{ matrix.slug }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.target.outputs.ref }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.10"
+      - name: ${{ matrix.mode }} ${{ matrix.root }}
+        env:
+          ROOT: ${{ matrix.root }}
+          MODE: ${{ matrix.mode }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          dir="$ROOT"
+
+          # The AWS provider takes its region from AWS_REGION. The backend block is generated only when the root has none.
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          REGION=$(yq .region common.yaml)
+          export AWS_REGION="$REGION"
+          PROJECT=$(yq .project common.yaml)
+          if ! grep -qE '^\s*backend\s+"s3"' "$dir"/*.tf; then
+            printf 'terraform {\n  backend "s3" {}\n}\n' > "$dir/backend.tf"
+          fi
+
+          # State bucket: one per account and region, shared by every configuration (the key is the root path).
+          # apply creates it when missing, plan only checks.
+          BUCKET="${PROJECT}-tfstate-${ACCOUNT}-${REGION}"
+          if ! aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+            if [ "$MODE" != "apply" ]; then
+              echo "::error::State bucket $BUCKET does not exist yet. Run this workflow manually with mode apply first."
+              exit 1
+            fi
+            echo "Creating state bucket $BUCKET"
+            if [ "$REGION" = "us-east-1" ]; then
+              aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" >/dev/null
+            else
+              aws s3api create-bucket --bucket "$BUCKET" --region "$REGION" --create-bucket-configuration LocationConstraint="$REGION" >/dev/null
+            fi
+            aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+            aws s3api put-bucket-versioning --bucket "$BUCKET" --versioning-configuration Status=Enabled
+            aws s3api put-bucket-encryption --bucket "$BUCKET" --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+            aws s3api put-bucket-tagging --bucket "$BUCKET" --tagging "TagSet=[{Key=Project,Value=${PROJECT}},{Key=Purpose,Value=terraform-state},{Key=ManagedBy,Value=terraform-pipeline}]"
+          fi
+
+          terraform -chdir="$dir" init -input=false \
+            -backend-config="bucket=${BUCKET}" \
+            -backend-config="key=${ROOT}/terraform.tfstate" \
+            -backend-config="region=${REGION}" \
+            -backend-config="encrypt=$(yq .backend.encrypt common.yaml)" \
+            -backend-config="use_lockfile=$(yq .backend.use_lockfile common.yaml)"
+          terraform -chdir="$dir" plan -input=false -lock-timeout=10m -out=tfplan
+          {
+            echo "### ${ROOT} (${MODE})"
+            echo '<details><summary>plan</summary>'
+            echo
+            echo '```'
+            terraform -chdir="$dir" show -no-color tfplan
+            echo '```'
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$MODE" = "apply" ]; then
+            terraform -chdir="$dir" apply -input=false -lock-timeout=10m tfplan
+          fi
+
+      # ---- plan mode only: what the PR comment needs. The raw plan stays in this job; only a sanitized summary is uploaded.
+      - uses: actions/setup-python@v5
+        if: matrix.mode == 'plan'
+        with:
+          python-version: "3.12"
+      - uses: infracost/actions/setup@v3
+        if: matrix.mode == 'plan' && env.HAS_INFRACOST == 'true'
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+      - name: summarize the plan (sanitized) and estimate its cost
+        if: matrix.mode == 'plan'
+        env:
+          ROOT: ${{ matrix.root }}
+          SLUG: ${{ matrix.slug }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          raw="${RUNNER_TEMP}/plan-raw.json"
+          terraform -chdir="$ROOT" show -json tfplan > "$raw"
+          python3 -m pip install -q pyyaml
+          PYTHONPATH=tools python -m reviewer.engine plan-summary --plan "$raw" --out "plan-${SLUG}.json"
+          if [ "${HAS_INFRACOST}" = "true" ]; then
+            infracost diff --path "$raw" --format json --out-file "cost-${SLUG}.json" || echo "::warning::Infracost failed; the cost section will be empty"
+          fi
+          rm -f "$raw"
+      - uses: actions/upload-artifact@v4
+        if: matrix.mode == 'plan' && always()
+        with:
+          name: plan-${{ matrix.slug }}
+          path: |
+            plan-${{ matrix.slug }}.json
+            cost-${{ matrix.slug }}.json
+          if-no-files-found: ignore
+          retention-days: 3

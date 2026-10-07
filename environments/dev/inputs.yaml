@@ -1,0 +1,120 @@
+# DEV environment: a single Terraform configuration (environments/dev/main.tf) reads this file.
+# Block-style YAML only (no braces, no inline lists). Values are validated by the modules' typed inputs.
+# Project and region are in the repo-root common.yaml; the mandatory tags are project + the three values below.
+
+environment: dev # must equal this folder's name (rule TF-005)
+owner: platform-team
+cost_center: cc-1234
+
+# Application and database ports. Single definition: used by the security groups, the target group, the database and the instances.
+ports:
+  app: 8080
+  db: 5432
+
+network:
+  cidr_block: 10.20.0.0/16
+  nat_gateway_mode: single # none | single | per_az
+  availability_zones:
+    - us-east-1a
+    - us-east-1b
+  public_subnet_cidrs:
+    - 10.20.0.0/24
+    - 10.20.1.0/24
+  private_subnet_cidrs:
+    - 10.20.10.0/24
+    - 10.20.11.0/24
+
+# One security group per tier. `port` is a number or a named port: app | db | https | http.
+# A rule has either `cidr_ipv4` (`vpc` = the VPC CIDR) or `source_sg` (alb for app, app for db).
+security_groups:
+  alb:
+    description: Application load balancer
+    allow_public_ingress: true
+    ingress:
+      http:
+        description: HTTP from the internet
+        port: http
+        cidr_ipv4: 0.0.0.0/0
+    egress:
+      to_app:
+        description: Forward to the app tier
+        port: app
+        cidr_ipv4: vpc
+  app:
+    description: Application instances
+    ingress:
+      from_alb:
+        description: Traffic from the ALB
+        port: app
+        source_sg: alb
+    egress:
+      https_out:
+        description: HTTPS to AWS APIs and package mirrors via NAT
+        port: https
+        cidr_ipv4: 0.0.0.0/0
+      to_db:
+        description: Database traffic
+        port: db
+        cidr_ipv4: vpc
+  db:
+    description: Aurora database
+    ingress:
+      from_app:
+        description: Database traffic from the app tier
+        port: db
+        source_sg: app
+
+database:
+  engine: postgresql # postgresql | mysql
+  engine_version: "16.4" # choose a version Aurora currently supports
+  database_name: shop
+  instance_class: db.t4g.medium
+  backup_retention_days: 3
+  deletion_protection: false
+  skip_final_snapshot: true
+  instances:
+    "1":
+      promotion_tier: 0
+  cluster_parameters:
+    rds.force_ssl:
+      value: "1"
+
+alb:
+  internal: false # false = internet-facing in public subnets, true = private subnets
+  deletion_protection: false
+  target_groups:
+    web:
+      port: app
+      target_type: instance
+      health_check_path: /health
+  listeners:
+    http:
+      port: 80
+      protocol: HTTP
+      default_action:
+        type: forward
+        target_group: web
+
+instance_role:
+  create_instance_profile: true
+  allow_read_db_secret: true
+  assume_role_services:
+    - ec2.amazonaws.com
+  managed_policy_arns:
+    - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+compute:
+  target_group: web # ALB target group (alb.target_groups) the Auto Scaling Group registers with
+  instance_type: t3.small
+  ami_id: null # null resolves the latest Amazon Linux 2023; pin an AMI in production
+  root_volume_size_gb: 20
+  min_size: 1
+  desired_size: 1
+  max_size: 2
+  health_check_type: ELB # EC2 | ELB
+  health_check_grace_period: 300
+  enable_instance_refresh: true
+  scaling_policies:
+    cpu:
+      predefined_metric: ASGAverageCPUUtilization
+      target_value: 60

@@ -1,0 +1,40 @@
+"""Infracost is the only source of prices. This module only reshapes its JSON."""
+from __future__ import annotations
+
+import json
+from typing import Any, Dict, List, Optional
+
+
+def _num(v: Any) -> Optional[float]:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def summarize_infracost(doc: Dict[str, Any], top: int = 10) -> Dict[str, Any]:
+    total = _num(doc.get("totalMonthlyCost"))
+    past = _num(doc.get("pastTotalMonthlyCost"))
+    diff = _num(doc.get("diffTotalMonthlyCost"))
+    if diff is None and total is not None and past is not None:
+        diff = total - past
+    drivers: List[Dict[str, Any]] = []
+    for project in doc.get("projects", []):
+        for res in (project.get("breakdown") or {}).get("resources", []):
+            cost = _num(res.get("monthlyCost"))
+            if cost:
+                drivers.append({"resource": res.get("name"), "monthly_cost": cost})
+    drivers.sort(key=lambda d: -d["monthly_cost"])
+    return {
+        "source": "infracost",
+        "currency": doc.get("currency", "USD"),
+        "current_monthly_cost": past,
+        "proposed_monthly_cost": total,
+        "monthly_delta": diff,
+        "top_cost_drivers": drivers[:top],
+    }
+
+
+def load_infracost(path: str) -> Dict[str, Any]:
+    with open(path, encoding="utf-8") as fh:
+        return summarize_infracost(json.load(fh))
