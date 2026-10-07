@@ -118,3 +118,4 @@ compute:
     cpu:
       predefined_metric: ASGAverageCPUUtilization
       target_value: 60
+# prueba de PR
