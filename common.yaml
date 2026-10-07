@@ -23,7 +23,7 @@ ai:
 #   conventions.layout: {roots, files, template_suffixes, identical}   enables rules TF-004 / TF-006
 terraform:
   accounts: # the AWS account id of each branch's keys; the pipeline stops if the keys belong to another account
-    develop: "<dev-account-id>"
+    develop: "785995043299"
     main: "<prod-account-id>"
   deploy:
     develop:
