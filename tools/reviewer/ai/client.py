@@ -19,11 +19,14 @@ class AIError(RuntimeError):
 
 
 class AIClient(Protocol):
+    """What the AI step needs from a model: one method, text in and text out."""
     def generate(self, system: str, user: str) -> str:  # pragma: no cover - protocol
+        """Send the system prompt and the user text, and return the model's raw text answer."""
         ...
 
 
 class GeminiClient:
+    """Calls the Gemini REST API with no SDK. The HTTP opener is injectable so the call can be faked."""
     def __init__(
         self,
         api_key: str,
@@ -37,6 +40,7 @@ class GeminiClient:
         self._open = opener or urllib.request.urlopen  # injectable for tests
 
     def generate(self, system: str, user: str) -> str:
+        """Ask Gemini for a JSON answer and return its text. Raises AIError on any HTTP or response problem."""
         body: Dict[str, Any] = {
             "systemInstruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": [{"text": user}]}],

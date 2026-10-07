@@ -26,6 +26,7 @@ HEREDOC_RE = re.compile(r"<<-?([A-Za-z_][A-Za-z0-9_]*)\n")
 
 @dataclass
 class Block:
+    """One HCL block (resource, data, variable, output or module) found in a .tf file."""
     kind: str
     labels: List[str]
     body: str
@@ -35,14 +36,17 @@ class Block:
 
     @property
     def type(self) -> str:
+        """First label of the block (the resource type for a resource)."""
         return self.labels[0] if self.labels else ""
 
     @property
     def name(self) -> str:
+        """Last label of the block: its own name."""
         return self.labels[-1] if self.labels else ""
 
     @property
     def address(self) -> str:
+        """How Terraform names it: `type.name` for a resource, `kind.name` otherwise."""
         if self.kind == "resource":
             return "{}.{}".format(self.labels[0], self.labels[1])
         return "{}.{}".format(self.kind, self.name)
@@ -93,6 +97,7 @@ def _mask(text: str):
 
 
 def parse(text: str, file: str) -> List[Block]:
+    """Find the top-level blocks of a .tf file and the attributes of each, ignoring comments and strings."""
     no_comments, no_strings = _mask(text)
     blocks: List[Block] = []
     for m in BLOCK_RE.finditer(no_comments):
@@ -197,10 +202,13 @@ def load_config(root: str) -> Dict[str, Any]:
 
 
 def _dir(path: str) -> str:
+    """Folder of a path (`.` for the repository root)."""
     return os.path.dirname(path) or "."
 
 
 class Repo:
+    """A read-only view of the repository: its .tf files and blocks, plus discovery of root configurations, modules
+    and what a change affects."""
     def __init__(self, root: str):
         self.root = os.path.abspath(root)
         self.cfg = load_config(self.root)
@@ -212,6 +220,7 @@ class Repo:
         self._modules: Optional[List[str]] = None
 
     def _discover(self) -> List[str]:
+        """Every .tf file below the root, skipping tool and cache folders."""
         found = []
         for dirpath, dirnames, filenames in os.walk(self.root):
             dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDED_DIRS)
@@ -221,33 +230,40 @@ class Repo:
         return found
 
     def text(self, rel: str) -> str:
+        """Contents of a file (cached)."""
         if rel not in self._text:
             with open(os.path.join(self.root, rel), encoding="utf-8", errors="replace") as fh:
                 self._text[rel] = fh.read()
         return self._text[rel]
 
     def blocks(self, rel: str) -> List[Block]:
+        """Parsed blocks of one file (cached)."""
         if rel not in self._blocks:
             self._blocks[rel] = parse(self.text(rel), rel)
         return self._blocks[rel]
 
     def all_blocks(self, kind: Optional[str] = None) -> List[Block]:
+        """Blocks of every file, optionally only one kind."""
         out = []
         for rel in self.tf_files:
             out.extend(b for b in self.blocks(rel) if kind is None or b.kind == kind)
         return out
 
     def files_in(self, directory: str) -> List[str]:
+        """The .tf files directly in a folder."""
         return [f for f in self.tf_files if _dir(f) == directory]
 
     def exists(self, rel: str) -> bool:
+        """Whether a path exists in the repository."""
         return os.path.exists(os.path.join(self.root, rel))
 
     def listdir(self, rel: str) -> List[str]:
+        """Sorted names in a folder; empty when it does not exist."""
         p = os.path.join(self.root, rel)
         return sorted(os.listdir(p)) if os.path.isdir(p) else []
 
     def line_count(self, rel: str) -> Optional[int]:
+        """Number of lines of a file, or None when it cannot be read."""
         try:
             return self.text(rel).count("\n") + 1
         except OSError:
@@ -278,6 +294,7 @@ class Repo:
         return self._calls
 
     def _under_module_base(self, directory: str) -> bool:
+        """Whether a folder is inside one of the configured modules folders."""
         return any(directory == b.strip("/") or directory.startswith(b.strip("/") + "/") for b in self.cfg["modules"])
 
     def roots(self) -> List[str]:
@@ -312,6 +329,7 @@ class Repo:
         return self._modules
 
     def is_module_dir(self, directory: str) -> bool:
+        """Whether a folder is a shared module."""
         return directory in set(self.module_dirs())
 
     def module_relpath(self, directory: str) -> str:
@@ -368,6 +386,7 @@ class Repo:
         )
 
     def is_protected(self, root: str) -> bool:
+        """Whether a root matches terraform.protected."""
         return any(glob_match(g, root) for g in self.cfg["protected"])
 
     def affected(self, changed_paths: List[str]) -> List[Dict[str, Any]]:

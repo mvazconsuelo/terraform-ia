@@ -18,6 +18,7 @@ REGISTRY: Dict[str, Check] = {}
 
 
 def check(name: str):
+    """Decorator: register a contract check under the name that `check:` in rules.yaml refers to."""
     def deco(fn: Check) -> Check:
         REGISTRY[name] = fn
         return fn
@@ -26,6 +27,7 @@ def check(name: str):
 
 
 def _f(rule: dict, evidence: str, file=None, line=None, resource=None, **over) -> Finding:
+    """Build a Finding from a rule's metadata and the evidence of one violation."""
     data = dict(
         severity=rule["severity"],
         category=rule["category"],
@@ -43,15 +45,18 @@ def _f(rule: dict, evidence: str, file=None, line=None, resource=None, **over) -
 
 
 def _module_of(path: str) -> str:
+    """Folder that contains a file."""
     return os.path.dirname(path)
 
 
 def _in(path: str, prefixes: List[str]) -> bool:
+    """True when the path starts with any of the prefixes."""
     return any(path.startswith(p) for p in prefixes)
 
 
 @check("reusable_capability_outside_module")
 def reusable_capability_outside_module(repo: Repo, rule: dict) -> List[Finding]:
+    """MOD-001: a resource type that has a module is declared in a folder that is not a module."""
     out = []
     caps = rule["capabilities"]
     for b in repo.all_blocks("resource"):
@@ -68,6 +73,7 @@ def reusable_capability_outside_module(repo: Repo, rule: dict) -> List[Finding]:
 
 @check("module_required_files")
 def module_required_files(repo: Repo, rule: dict) -> List[Finding]:
+    """MOD-002: each module has the files and folders the contract requires."""
     out = []
     for d in repo.module_dirs():
         missing = [f for f in rule["required"] if not repo.exists(os.path.join(d, f))]
@@ -91,6 +97,7 @@ def _arbitrary_name(rtype: str, name: str) -> bool:
 
 @check("primary_resource_naming")
 def primary_resource_naming(repo: Repo, rule: dict) -> List[Finding]:
+    """MOD-003: resources are named `this` or by role, not arbitrarily (`my_bucket`, `prod_bucket`, `bucket123`)."""
     out = []
     for d in repo.module_dirs():
         by_type: Dict[str, list] = {}
@@ -109,6 +116,7 @@ def primary_resource_naming(repo: Repo, rule: dict) -> List[Finding]:
 
 @check("no_any_type")
 def no_any_type(repo: Repo, rule: dict) -> List[Finding]:
+    """MOD-004: no variable declares `type = any`."""
     out = []
     for b in repo.all_blocks("variable"):
         t = b.attrs.get("type", "")
@@ -119,6 +127,8 @@ def no_any_type(repo: Repo, rule: dict) -> List[Finding]:
 
 @check("eks_domain_layout")
 def eks_domain_layout(repo: Repo, rule: dict) -> List[Finding]:
+    """MOD-006: components live under their domain folder (eks/, ec2/, elb/), not as top-level eks-*, ec2-* or
+    elb-* modules."""
     out = []
     seen = set()
     for d in repo.module_dirs():
@@ -130,6 +140,8 @@ def eks_domain_layout(repo: Repo, rule: dict) -> List[Finding]:
 
 
 def _tag_contract_ok(expr: str, module_text: str, mandatory: List[str]) -> bool:
+    """True when a `tags` expression carries every mandatory tag: it uses local.tags and the module defines each
+    tag, or it lists them itself."""
     if re.search(r"\blocal\.(tags|mandatory_tags|common_tags)\b", expr):
         return all(re.search(r"\b%s\b" % k, module_text) for k in mandatory)
     return all(re.search(r"\b%s\b" % k, expr) for k in mandatory)
@@ -137,6 +149,7 @@ def _tag_contract_ok(expr: str, module_text: str, mandatory: List[str]) -> bool:
 
 @check("missing_mandatory_tags")
 def missing_mandatory_tags(repo: Repo, rule: dict) -> List[Finding]:
+    """GOV-001: every taggable resource in a module has a `tags` argument that carries the mandatory tags."""
     out = []
     taggable = set(rule["taggable_types"])
     mandatory = rule["mandatory_tags"]
@@ -157,6 +170,7 @@ def missing_mandatory_tags(repo: Repo, rule: dict) -> List[Finding]:
 
 @check("tag_variable_contract")
 def tag_variable_contract(repo: Repo, rule: dict) -> List[Finding]:
+    """GOV-002: a module that creates taggable resources declares the `tags` and `extra_tags` variables."""
     out = []
     taggable = set(rule["_rules"]["GOV-001"]["taggable_types"])
     for d in repo.module_dirs():
@@ -172,6 +186,7 @@ def tag_variable_contract(repo: Repo, rule: dict) -> List[Finding]:
 
 @check("module_has_tests")
 def module_has_tests(repo: Repo, rule: dict) -> List[Finding]:
+    """TF-003: each module has `tests/*.tftest.hcl`."""
     out = []
     for d in repo.module_dirs():
         tdir = os.path.join(d, "tests")
@@ -209,6 +224,7 @@ def nat_without_justification(repo: Repo, rule: dict) -> List[Finding]:
 
 @check("asg_tag_blocks")
 def asg_tag_blocks(repo: Repo, rule: dict) -> List[Finding]:
+    """GOV-003: Auto Scaling Groups use `tag` blocks with propagate_at_launch = true for the mandatory tags."""
     out = []
     for d in repo.module_dirs():
         files = repo.files_in(d)
@@ -243,6 +259,8 @@ def _layout(repo: Repo):
 
 @check("root_layout")
 def root_layout(repo: Repo, rule: dict) -> List[Finding]:
+    """TF-004 (opt-in): roots matched by terraform.conventions.layout hold only the listed files and templates, and
+    their main.tf declares no provider, required_providers or backend."""
     conv, roots = _layout(repo)
     out = []
     files = conv.get("files", [])
@@ -294,6 +312,7 @@ PLAN_REGISTRY: Dict[str, PlanCheck] = {}
 
 
 def plan_check(name: str):
+    """Decorator: register a plan check. It receives the plans and costs keyed by root path."""
     def deco(fn: PlanCheck) -> PlanCheck:
         PLAN_REGISTRY[name] = fn
         return fn
@@ -303,6 +322,8 @@ def plan_check(name: str):
 
 @plan_check("plan_stateful_change")
 def plan_stateful_change(plans: Dict[str, dict], costs: Dict[str, dict], rule: dict) -> List[Finding]:
+    """PLAN-001: the plan destroys or replaces a stateful resource (CRITICAL in a protected root or on a plain
+    destroy, HIGH for a replacement elsewhere)."""
     out = []
     stateful = set(rule["stateful_types"])
     protected = rule.get("_protected", lambda root: False)
@@ -325,6 +346,7 @@ def plan_stateful_change(plans: Dict[str, dict], costs: Dict[str, dict], rule: d
 
 @plan_check("plan_cost_delta")
 def plan_cost_delta(plans: Dict[str, dict], costs: Dict[str, dict], rule: dict) -> List[Finding]:
+    """PLAN-002: Infracost reports a monthly increase above the rule's threshold."""
     out = []
     limit = float(rule["monthly_delta_usd"])
     for env, cost in sorted(costs.items()):
@@ -340,6 +362,7 @@ def plan_cost_delta(plans: Dict[str, dict], costs: Dict[str, dict], rule: dict) 
 
 
 def run_plan_checks(plans: Dict[str, dict], costs: Dict[str, dict], rules: List[dict], protected: Callable[[str], bool] = lambda root: False) -> List[Finding]:
+    """Run every plan check (PLAN-*). `protected(root)` says whether a root is protected."""
     findings: List[Finding] = []
     for rule in rules:
         fn = PLAN_REGISTRY.get(rule.get("check", ""))

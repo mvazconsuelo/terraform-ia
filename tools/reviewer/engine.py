@@ -34,6 +34,7 @@ RULES_PATH = Path(__file__).resolve().parent / "rules.yaml"
 # Rules and checks
 # ----------------------------------------------------------------------------------------------------------------
 def load_rules(path: Optional[Path] = None) -> List[dict]:
+    """Read rules.yaml, the single contract that checks.py implements."""
     with open(path or RULES_PATH, encoding="utf-8") as fh:
         return (yaml.safe_load(fh) or {}).get("rules", [])
 
@@ -71,6 +72,7 @@ def run_all(
 # The verdict
 # ----------------------------------------------------------------------------------------------------------------
 def max_severity(findings: List[Finding]) -> str:
+    """Highest severity among the findings; INFO when there are none."""
     return min((f.severity for f in findings), key=severity_rank) if findings else "INFO"
 
 
@@ -137,6 +139,8 @@ def review(
     production: bool = False,
     branch: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """One complete review: affected roots, findings, the deterministic verdict and the optional AI summary.
+    Returns the dict that the report and the JSON output are built from."""
     plans, costs, checks = plans or {}, costs or {}, checks or {}
     repo, rules = Repo(root), load_rules()
     if production:  # the PR targets the production branch: every configuration in it is protected
@@ -210,12 +214,14 @@ def ai_requested(args: argparse.Namespace, root: str) -> bool:
 
 
 def _changed(args: argparse.Namespace) -> List[Dict[str, str]]:
+    """The files to review: those changed since --base, or every Terraform file when no base is given."""
     if args.base:
         return git_changed_files(args.root, args.base)
     return [{"status": "modified", "path": p} for p in Repo(args.root).tf_files]
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    """Command line: check, review, discover and plan-summary."""
     ap = argparse.ArgumentParser(prog="terra-review", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
 
