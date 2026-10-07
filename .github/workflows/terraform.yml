@@ -122,7 +122,6 @@ jobs:
           api-key: ${{ secrets.INFRACOST_API_KEY }}
       - name: summarize the plan and estimate its cost
         if: env.MODE == 'plan'
-        env:
         run: |
           set -euo pipefail
           terraform -chdir="$ROOT" show -json tfplan > "$RUNNER_TEMP/raw.json"
