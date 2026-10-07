@@ -64,6 +64,8 @@ jobs:
           ROOTS: ${{ needs.discover.outputs.roots }}
         run: |
           set -euo pipefail
+          # one provider download shared by every module (each module would otherwise unpack its own ~800 MB copy)
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/tf-plugins"; mkdir -p "$TF_PLUGIN_CACHE_DIR"
           for d in $(find modules -name versions.tf -not -path '*/.terraform/*' -exec dirname {} \;) $ROOTS; do
             echo "== validate $d"
             (cd "$d" && terraform init -backend=false -input=false >/dev/null && terraform validate)
@@ -80,6 +82,8 @@ jobs:
       - name: test every module (mocked provider, no credentials)
         run: |
           set -euo pipefail
+          # one provider download shared by every module (each module would otherwise unpack its own ~800 MB copy)
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/tf-plugins"; mkdir -p "$TF_PLUGIN_CACHE_DIR"
           for d in $(find modules -type d -name tests -not -path '*/.terraform/*' -exec dirname {} \;); do
             echo "== test $d"
             (cd "$d" && terraform init -backend=false -input=false >/dev/null && terraform test)

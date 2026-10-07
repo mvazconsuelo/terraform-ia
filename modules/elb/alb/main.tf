@@ -22,7 +22,7 @@ resource "aws_lb" "this" {
   lifecycle {
     precondition {
       condition = alltrue(concat(
-        [for l in values(var.listeners) : l.default_action.type != "forward" || contains(keys(var.target_groups), l.default_action.target_group)],
+        [for l in values(var.listeners) : l.default_action.type != "forward" || contains(keys(var.target_groups), coalesce(l.default_action.target_group, "-"))],
         [for r in values(var.rules) : contains(keys(var.target_groups), r.target_group) && contains(keys(var.listeners), r.listener)]
       ))
       error_message = "Every forward target_group must be a key of target_groups and every rule.listener a key of listeners."

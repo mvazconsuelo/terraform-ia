@@ -9,7 +9,7 @@ backend:
 # Optional AI analysis (Gemini) in the PR comment. Off by default: nothing leaves the repository until you enable it.
 # It also needs the GEMINI_API_KEY secret. The deterministic review (the authority) works the same either way.
 ai:
-  enabled: true
+  enabled: false
 
 # Terraform root configurations (folders with their own state) are discovered automatically: a folder nobody calls as a
 # module that has resources, modules, a provider or a backend. Only the ones a change affects are planned and applied.
