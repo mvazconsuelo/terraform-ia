@@ -9,7 +9,7 @@ terra-ai/
 ├── .github/workflows/
 │   ├── pull-request.yml        discover affected configurations, checks, read-only plans, the PR comment
 │   └── terraform.yml           plan / apply of the affected configurations (matrix), or one by hand
-├── environments/               EXAMPLE root configurations (dev, prod); yours can live anywhere (infra/web, terraform/networking...)
+├── infra-example/              EXAMPLE root configurations (dev/web-demo, prod/web-demo); yours can live anywhere (infra/web, terraform/networking...); its README explains them
 ├── modules/                    reusable capabilities, each with README and `terraform test`
 ├── tools/reviewer/
 │   ├── rules.yaml              the review contract: the ONLY source of truth for checks.py
@@ -40,8 +40,8 @@ touched. The AI never decides what runs; it only receives the list of affected c
 PYTHONPATH=tools python -m reviewer.engine discover --base origin/main --format text   # or json | matrix
 ```
 
-The environment comes from the branch, not from folders: PRs and merges to `develop` use the GitHub Environment `develop`,
-those to `main` use `main`. Optional `terraform.conventions.layout` (used by the `environments/*` example) enables TF-004 / TF-006: allowed files per
+The AWS account comes from the branch, not from folders: PRs and merges to `develop` use the `AWS_*_DEVELOP` secrets,
+those to `main` use the `AWS_*_MAIN` secrets, and `terraform.accounts` in `common.yaml` checks that each pair belongs to the expected account. Optional `terraform.conventions.layout` (used by the `environments/*` example) enables TF-004 / TF-006: allowed files per
 root and files that must be identical across the family. Without it those rules do nothing. Roots that depend on each other
 (networking before workloads) are applied one at a time in path order; cross-root ordering beyond that is not modelled.
 
@@ -62,10 +62,14 @@ Each tool is the authority for its own domain; `reviewer` is not another Checkov
    `terraform plan` and the Infracost estimate, and computes the verdict: `REQUEST_CHANGES` if any confirmed finding is HIGH
    or CRITICAL or any external check failed; otherwise `PASS` (lower severities are still listed). There is no approve and
    no merge.
-2. **The PR comment is built by code** (`report.py`): tests, plan, replacements, cost, governance, module standard.
-3. **Optional AI analysis.** Gemini receives a controlled, sanitized payload and returns three texts validated against
-   `ai/schema.json`: *Intent vs Infrastructure*, *Architecture Impact* and *Reviewer Summary*. It returns no findings, so it
-   cannot add, reword or remove one, and it cannot change the verdict.
+2. **The PR comment is built by code** (`report.py`): affected configurations, changed files, validation and tests, plan,
+   resource changes, replacements, cost, governance, module standard, repository contract, finding counts and the decision.
+   That is the evidence.
+3. **Optional AI Summary.** Gemini receives the whole deterministic result (verdict, affected configurations, checks, plan,
+   replacements, cost, findings, the PR text) as a controlled, sanitized payload and returns ONE text, validated against
+   `ai/schema.json`: an executive summary a reviewer can read instead of the whole report. It sits at the top of the comment;
+   the evidence follows. It returns no findings and no decision, so it cannot add, reword or remove a finding, and it
+   cannot change the risk or the verdict.
 
 **Trust boundary.** The payload holds the repository context (derived from the repo itself), the PR title and description,
 the changed files, the plan summary and replacements, the cost estimate, the check results and the deterministic findings;
@@ -77,7 +81,8 @@ Terraform address, file and price it mentions is checked against the evidence; w
 
 **Failure behaviour.** The AI step is off by default (`ai.enabled: false` in `common.yaml`) and needs `GEMINI_API_KEY`. If it
 is disabled, has no key, fails, returns invalid output twice, or the PR comes from a fork, the comment is identical except
-for the *AI Analysis* section, which says `AI review was not executed.` and why.
+for the *AI Summary* section, which says `AI summary unavailable.` (or that the AI is disabled) and why. A failing model
+never turns a PASS into a failure.
 
 ## The review contract (`rules.yaml`)
 
@@ -168,9 +173,9 @@ its README (usage, tags, lifecycle, cost) and a `terraform test` suite.
 ## Using it
 
 ```bash
-# an environment (see environments/README.md): credentials + region from the environment, no wrapper tool
+# an environment (see infra-example/README.md): credentials + region from the environment, no wrapper tool
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=us-east-1
-cd environments/dev && terraform init && terraform plan
+cd infra-example/dev/web-demo && terraform init && terraform plan
 
 # module tests, no credentials
 cd modules/vpc && terraform init -backend=false && terraform test
@@ -183,7 +188,7 @@ GEMINI_API_KEY=... PYTHONPATH=tools python -m reviewer.engine review --base orig
 PYTHONPATH=tools python -m reviewer.engine review --base origin/main --print-ai-payload              # what Gemini would see
 ```
 
-Credentials and the GitHub setup (Environments, secrets, variables) are in [environments/README.md](environments/README.md).
+Credentials and the GitHub setup (secrets and accounts) are in [infra-example/README.md](infra-example/README.md).
 
 ## Roadmap
 

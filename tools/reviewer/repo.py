@@ -169,7 +169,7 @@ _FILE_REF = re.compile(r'path\.module\}/([^"\)]+)|(?:file|templatefile)\(\s*"(\.
 _PROVIDER = re.compile(r'^\s*provider\s+"', re.MULTILINE)
 _BACKEND = re.compile(r'^\s*backend\s+"', re.MULTILINE)
 
-CONFIG_DEFAULTS: Dict[str, Any] = {"roots": None, "modules": ["modules"], "protected": [], "conventions": {}}
+CONFIG_DEFAULTS: Dict[str, Any] = {"roots": None, "modules": ["modules"], "protected": [], "deploy": {}, "accounts": {}, "conventions": {}}
 
 
 def slug(path: str) -> str:
@@ -343,6 +343,29 @@ class Repo:
                 if not path.startswith("..") and _dir(path) != directory:
                     out.add(path)
         return out
+
+    def affected_modules(self, changed_paths: List[str]) -> List[str]:
+        """Shared modules a change touches: edited themselves (code or tests), calling an edited module (transitively),
+        reading an edited shared file, or every module when the Terraform version changed."""
+        mods = set(self.module_dirs())
+        changed = [p for p in changed_paths if not p.endswith(".md")]
+        if any(os.path.basename(p) in _GLOBAL_FILES for p in changed):
+            return sorted(mods)
+        touched = set()
+        for p in changed:
+            d = _dir(p)
+            while True:
+                if d in mods:
+                    touched.add(d)
+                    break
+                if d in (".", ""):
+                    break
+                d = _dir(d)
+        edited = set(changed)
+        return sorted(
+            m for m in mods
+            if self.closure(m) & touched or any(f in edited for d in self.closure(m) for f in self.shared_files(d))
+        )
 
     def is_protected(self, root: str) -> bool:
         return any(glob_match(g, root) for g in self.cfg["protected"])

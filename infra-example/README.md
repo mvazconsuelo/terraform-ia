@@ -2,26 +2,31 @@
 
 This folder is **one example** of root configurations. The reviewer and the workflows treat `environments/dev` like any other root (`infra/web`, `terraform/networking`...): which folders are roots comes from `terraform:` in `common.yaml`. Everything below is specific to this example.
 
-The live configuration, organised like Terragrunt's `live/` tree but with plain Terraform: **one folder per environment** (each is its own AWS account or VPC) and **one Terraform configuration per environment**. Network, security groups, database, load balancer and web tier live together in one `main.tf`, so Terraform builds the dependency graph itself: a single `terraform plan` shows the whole environment, even before anything exists.
+The live configuration, organised like Terragrunt's `live/` tree but with plain Terraform: **one folder per environment** (each is its own AWS account or VPC) and **one Terraform configuration per environment**. Network, security groups, database, load balancer and web tier live in one folder, one file per resource group, so Terraform (which loads every `.tf` of the folder as a single configuration) builds the dependency graph itself: a single `terraform plan` shows the whole environment, even before anything exists.
 
 ```text
 environments/
 ├── dev/                         its own AWS account / VPC and its own state bucket
-│   ├── main.tf                  the whole environment, in numbered sections
+│   ├── main.tf                  reads common.yaml + inputs.yaml (locals) and validates them (preconditions, prod policy)
+│   ├── network.tf               VPC and the three security groups
+│   ├── database.tf              Aurora
+│   ├── load_balancer.tf         application load balancer
+│   ├── web.tf                   instance role, launch template and Auto Scaling Group
+│   ├── outputs.tf               outputs
 │   ├── inputs.yaml              the values of this environment
 │   └── web-user-data.sh.tftpl   bootstrap script of the web instances
-├── prod/                        the same three files, prod values
+├── prod/                        the same files, prod values
 └── README.md
 ```
 
-`main.tf` is divided into: 1 configuration, 2 validation, 3 network (VPC and the three security groups), 4 database, 5 load balancer, 6 web tier, 7 outputs. It calls `modules/` directly and is **identical in every environment**; the difference between dev and prod is only data, in `inputs.yaml`. The reviewer enforces both facts (rules `TF-004`: an environment holds only `main.tf`, `inputs.yaml` and its templates; `TF-006`: `main.tf` and the templates are identical across environments).
+The `.tf` files call `modules/` directly and are **identical in every environment**; the difference between dev and prod is only data, in `inputs.yaml`. The reviewer can enforce both facts, but only if you opt in with `terraform.conventions.layout` in `common.yaml` (rules `TF-004`: the folder holds only the files you list; `TF-006`: the files you list as `identical` match across the family). List all the `.tf` files above there if you enable it.
 
 ## Where each setting lives
 
 | Setting | Where |
 |---|---|
 | Project, state-bucket settings, `ai.enabled` | `common.yaml` at the repo root, shared by every environment |
-| Environment name, owner, cost center + every setting of the environment | `environments/<env>/inputs.yaml` (`main.tf` checks with a precondition that `environment` equals the folder name) |
+| Environment name, owner, cost center + every setting of the environment | `infra-example/<env>/web-demo/inputs.yaml` (`main.tf` checks with a precondition that `environment` equals the folder name) |
 | Mandatory tags | built from `project` (common.yaml) + `environment`, `owner`, `cost_center` (inputs.yaml) |
 | AWS region of the provider | the `AWS_REGION` environment variable (in GitHub: the `AWS_REGION` secret). There is no provider block to copy |
 | Terraform version | `.terraform-version` at the root (tfenv and compatible tools read it from parent folders); Terraform >= 1.10 is needed for the S3 native lock |
@@ -55,22 +60,27 @@ Before the first real `apply`: set a real `database.engine_version` in `inputs.y
 Two long-lived branches, whatever the folders are called: **`develop`** (non-production) and **`main`** (production). Work
 goes in a feature branch, a PR into `develop`, then a PR from `develop` into `main`. Every PR gets the same review.
 
-| Event | What runs | GitHub Environment |
+| Event | What runs | AWS account (secrets) |
 |---|---|---|
-| PR into `develop` or `main` | `pull-request.yml`: fmt, validate, module tests, TFLint, Checkov, the contract, a read-only `plan` of each **affected** configuration, one PR comment | the target branch's name |
-| Merge / push to `develop` or `main` | `terraform.yml`: `apply` of the roots the push affected | the branch's name |
-| Manual | `terraform.yml` (Run workflow): plan or apply one configuration of the selected branch | the branch's name |
+| PR into `develop` or `main` | `pull-request.yml`: fmt, validate, module tests, TFLint, Checkov, the contract, a read-only `plan` of each **affected** configuration, one PR comment | the target branch's: `*_MAIN` or `*_DEVELOP` |
+| Merge / push to `develop` or `main` | `terraform.yml`: `apply` of the roots the push affected | the branch's: `*_MAIN` or `*_DEVELOP` |
+| Manual | `terraform.yml` (Run workflow): plan or apply one configuration of the selected branch | the branch's: `*_MAIN` or `*_DEVELOP` |
 
-The branch name is the name of the GitHub Environment, so each branch has its own AWS keys and `AWS_REGION` and can use its own
-AWS account. A PR into `main` marks every configuration as protected (destroying a database is CRITICAL). To use other branch
-names, edit `branches:` under `push` in `terraform.yml`. Runs of one configuration are serialised (`concurrency`) on top of the
-state lock; Fork PRs get no secrets: validation and the
-deterministic comment only.
+The branch decides the AWS account: `main` uses the `AWS_ACCESS_KEY_ID_MAIN` / `AWS_SECRET_ACCESS_KEY_MAIN` secrets, every other
+branch uses the `*_DEVELOP` ones. Before init, the pipeline asks AWS for the account of the keys and compares it with
+`terraform.accounts.<develop|main>` in `common.yaml`; a mismatch (keys pasted into the wrong secret) stops the run before
+anything is touched. A PR into `main` marks every configuration as protected (destroying a database is CRITICAL). Each branch
+applies only the roots listed for it under `terraform.deploy`. To use other branch names, edit `branches:` under `push` in
+`terraform.yml`. Runs of one configuration are serialised (`concurrency`) on top of the state lock. Fork PRs get no secrets:
+validation and the deterministic comment only.
 
 ## One-time setup (GitHub)
 
-1. **GitHub Environments** (Settings → Environments): one per branch, named exactly like it (`develop`, `main`), each with the secrets `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` of its own AWS account and the secret `AWS_REGION`. Prefer different AWS accounts.
-2. Protect `main`: require PR review, dismiss stale approvals and require the `pull-request` checks; add required reviewers to the `main` environment to gate production applies. Do the same on `develop` if you want.
+1. **AWS secrets** (Settings → Secrets and variables → Actions → Secrets), all at repository level, one pair per account:
+   `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP`, `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN`, and
+   `AWS_REGION` (shared). Then write the two account ids under `terraform.accounts` in `common.yaml`.
+2. Protect `main`: require PR review, dismiss stale approvals and require the `pull-request` checks. Production applies run on
+   the merge to `main`, so that protection is the gate. Do the same on `develop` if you want.
 3. Repository secrets and variables (Settings → Secrets and variables → Actions):
 
    | Kind | Name | Used by |
@@ -79,7 +89,7 @@ deterministic comment only.
    | Secret | `GEMINI_MODEL` | the optional AI section (empty uses the default) |
    | Secret | `INFRACOST_API_KEY` | the cost section of the PR comment |
 
-   Never commit keys. `gh secret set NAME --env develop` and `gh variable set NAME --body VALUE` load them from a terminal.
+   Never commit keys. `gh secret set NAME` and `gh variable set NAME --body VALUE` load them from a terminal.
 4. Edit `common.yaml` (project) and the top of each `inputs.yaml` (owner, cost center).
 5. **State bucket**, once per AWS account and region (the pipeline only checks that it exists and fails with a clear message otherwise):
    ```bash
@@ -97,7 +107,7 @@ Block-style YAML only (no braces, no inline lists).
 |---|---|
 | `environment`, `owner`, `cost_center` | mandatory tags (with `project` from `common.yaml`); `environment` = folder name |
 | `ports` | `app` and `db`: the single definition, used by the security groups, the target group, the database and the instances |
-| `network` | `cidr_block`, `nat_gateway_mode` (`none`/`single`/`per_az`), `availability_zones`, `public_subnet_cidrs`, `private_subnet_cidrs` (one of each per AZ) |
+| `network` | `cidr_block`, optional `nat_gateway_mode` (`none` = default, no NAT gateway; `single`; `per_az`), `availability_zones`, `public_subnet_cidrs`, `private_subnet_cidrs` (one of each per AZ) |
 | `security_groups.<alb\|app\|db>` | `description`, `ingress` / `egress` rules: `description`, `port` (a number or `app`/`db`/`https`/`http`), optional `protocol`, and **one** of `cidr_ipv4` (`vpc` = the VPC CIDR) or `source_sg` (`alb` for app, `app` for db); `alb.allow_public_ingress` permits `0.0.0.0/0` |
 | `database` | `engine` (`postgresql` or `mysql`), `engine_version`, `database_name`, `instance_class`, `backup_retention_days`, `deletion_protection`, `skip_final_snapshot`, `instances` (keyed, each with `promotion_tier`), `cluster_parameters`, optional `serverless_v2`. The port is `ports.db` |
 | `alb` | `internal`, `deletion_protection`, `target_groups` (port or `app`, `target_type`, `health_check_path`), `listeners` (port, protocol, `certificate_arn`, `default_action` of type `forward` / `redirect` / `fixed_response`), optional `rules` |
@@ -108,15 +118,15 @@ Switching `database.engine` to `mysql` also needs a matching `engine_version` (e
 
 ## What is checked, and by whom
 
-- **`main.tf` itself** (`terraform_data.config_validation`, evaluated at every plan): required keys; one subnet CIDR per AZ; `compute.min_size <= max_size`; and the **prod policy**: HTTPS listener, `nat_gateway_mode = per_az`, database deletion protection and a final snapshot, at least two database instances and `compute.min_size >= 2`.
+- **`main.tf`** (`terraform_data.config_validation`, evaluated at every plan): required keys; one subnet CIDR per AZ; `compute.min_size <= max_size`; and the **prod policy**: HTTPS listener, `nat_gateway_mode = per_az`, database deletion protection and a final snapshot, at least two database instances and `compute.min_size >= 2`.
 - **The modules' typed variables**: CIDRs, enums, sizes, names, cross-field invariants.
 - **The reviewer** (`rules.yaml`): layout and identical `main.tf` (from `terraform.conventions`), and the plan (replacing a database in a protected root, cost jumps).
-- There is no separate environment test suite: the prod policy lives in `main.tf`, so it also protects `terraform apply` from a laptop, not only CI.
+- There is no separate environment test suite: the prod policy lives in `main.tf` (with the other files of the folder), so it also protects `terraform apply` from a laptop, not only CI.
 
 ## Design notes
 
 - **Traffic is tiered by security group.** `app_sg` accepts only from `alb_sg`; `db_sg` only from `app_sg`. The reverse directions (ALB egress → app, app egress → DB) use the VPC CIDR with explicit ports, because references in both directions would be a dependency cycle between the groups.
-- **Egress is explicit.** No tier has allow-all egress. The app tier needs HTTPS egress through NAT for `dnf` and the AWS APIs; with `nat_gateway_mode: none` it would also need VPC endpoints (not in this example).
+- **Egress is explicit.** No tier has allow-all egress. The app tier needs HTTPS egress through NAT for `dnf` and the AWS APIs; with the default `nat_gateway_mode: none` (no NAT) it has no internet at all: set `single` to let instances install packages, or add VPC endpoints (not in this example).
 - **Secrets stay out of state outputs and user data.** The DB password is generated by Aurora in Secrets Manager; the instances only get the secret's ARN and an IAM policy to read it.
 - **`web-user-data.sh.tftpl` is a placeholder** (nginx with `/health`); replace it with your application bootstrap. Anything written as dollar-brace in that file is filled by Terraform.
 
@@ -137,4 +147,4 @@ NAT gateway (1 in dev, 1 per AZ in prod), ALB hours + LCUs, Aurora instances and
 
 ## Adding an environment
 
-Copy `environments/dev` to `environments/<name>` (the three files), set `environment` in `inputs.yaml` to the folder name, edit the values, and add the GitHub Environments. The bucket and the state key follow from the folder and the account; the reviewer fails the PR if `main.tf` or the template differ from the other environments'.
+Copy `infra-example/dev` to `infra-example/<name>` (all its files), set `environment` in `inputs.yaml` to the folder name, edit the values, and add the new root under `terraform.deploy` for its branch. The bucket and the state key follow from the folder and the account; the reviewer fails the PR if `main.tf` or the template differ from the other environments'.
