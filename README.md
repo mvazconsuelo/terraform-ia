@@ -17,7 +17,7 @@ terra-ai/
 │   ├── engine.py               coordination, verdict (PASS | REQUEST_CHANGES) and command line
 │   ├── model.py  repo.py  plan.py  cost.py  report.py  sanitize.py
 │   └── ai/                     OPTIONAL: client.py · reviewer.py · grounding.py · prompt.md · schema.json
-├── common.yaml                 project, region, state settings, ai.enabled, `terraform:` (roots, modules, protected, deploy)
+├── common.yaml                 project, state settings, ai.enabled, optional `terraform:`
 └── README.md
 ```
 
@@ -28,8 +28,7 @@ terra-ai/
 A **root configuration** is a folder with its own state, planned and applied on its own. Nothing in the tooling assumes
 `environments/`, `dev` or `prod`: the `terraform:` block of `common.yaml` says which folders are roots (`roots` globs, or
 inferred: a folder nobody calls as a module that has resources, modules, a provider or a backend), where the shared modules
-live (`modules`), which roots are `protected` (destroying stateful resources is CRITICAL there) and which are applied on
-approval or merge (`deploy`).
+live (`modules`) and which roots are `protected` (destroying stateful resources is CRITICAL there; a PR into `main` protects all).
 
 For every PR, `engine.py discover` computes the **affected** roots: the ones with edited files, the ones that use an edited
 module (transitively, by local `source`) and the ones that read an edited shared file (`file()`, `templatefile()`,
@@ -41,7 +40,8 @@ touched. The AI never decides what runs; it only receives the list of affected c
 PYTHONPATH=tools python -m reviewer.engine discover --base origin/main --format text   # or json | matrix
 ```
 
-Optional `terraform.conventions.layout` (used by the `environments/*` example) enables TF-004 / TF-006: allowed files per
+The environment comes from the branch, not from folders: PRs and merges to `develop` use the GitHub Environment `develop`,
+those to `main` use `main`. Optional `terraform.conventions.layout` (used by the `environments/*` example) enables TF-004 / TF-006: allowed files per
 root and files that must be identical across the family. Without it those rules do nothing. Roots that depend on each other
 (networking before workloads) are applied one at a time in path order; cross-root ordering beyond that is not modelled.
 

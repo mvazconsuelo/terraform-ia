@@ -92,26 +92,10 @@ def decide(findings: List[Finding], checks: Optional[Dict[str, str]] = None) -> 
 # ----------------------------------------------------------------------------------------------------------------
 # Discovery: which root configurations a change touches (the workflows run terraform only for these)
 # ----------------------------------------------------------------------------------------------------------------
-def discover(repo: Repo, changed: Optional[List[str]], deploy: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Root configurations to act on. `changed=None` means all of them. `deploy` keeps only those that terraform.deploy.<event>
-    lists. Each entry has everything a matrix job needs: no folder name is assumed anywhere."""
+def discover(repo: Repo, changed: Optional[List[str]]) -> List[Dict[str, Any]]:
+    """Root configurations to act on. `changed=None` means all of them. No folder name is assumed anywhere."""
     found = repo.affected(changed) if changed is not None else [{"root": r, "reasons": ["all configurations requested"]} for r in repo.roots()]
-    if deploy:
-        allowed = repo.cfg["deploy"].get(deploy) or []
-        found = [a for a in found if a["root"] in allowed]
-    out = []
-    for a in found:
-        name = os.path.basename(a["root"].rstrip("/")) or a["root"]
-        out.append({
-            "root": a["root"],
-            "slug": slug(a["root"]),
-            "name": name,
-            "github_environment": name,
-            "plan_environment": name + "-plan",
-            "protected": repo.is_protected(a["root"]),
-            "reasons": a["reasons"],
-        })
-    return out
+    return [{"root": a["root"], "slug": slug(a["root"]), "reasons": a["reasons"]} for a in found]
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -127,9 +111,12 @@ def review(
     use_ai: bool = False,
     model: Optional[str] = None,
     ai_client: Any = None,
+    production: bool = False,
 ) -> Dict[str, Any]:
     plans, costs, checks = plans or {}, costs or {}, checks or {}
     repo, rules = Repo(root), load_rules()
+    if production:  # the PR targets the production branch: every configuration in it is protected
+        repo.cfg["protected"] = ["**"]
     affected = repo.affected([c["path"] for c in changed]) if changed else [{"root": r, "reasons": ["whole repository reviewed"]} for r in repo.roots()]
 
     # 1. the authority: findings, risk, verdict
@@ -220,6 +207,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     g = r.add_mutually_exclusive_group()
     g.add_argument("--ai", action="store_true", help="run the optional AI analysis (needs GEMINI_API_KEY); overrides common.yaml")
     g.add_argument("--no-ai", action="store_true", help="never run the AI analysis; overrides common.yaml")
+    r.add_argument("--production", action="store_true", help="the PR targets the production branch: destroying stateful resources is CRITICAL everywhere")
     r.add_argument("--model", help="Gemini model (default: $GEMINI_MODEL)")
     r.add_argument("--print-ai-payload", action="store_true", help="print exactly what the AI step would be sent (sanitized) and exit")
     r.add_argument("--out", help="write the JSON review here")
@@ -230,7 +218,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     sel = d.add_mutually_exclusive_group(required=True)
     sel.add_argument("--base", help="git ref (or SHA); configurations affected by the changes since it")
     sel.add_argument("--all", action="store_true", help="every configuration")
-    d.add_argument("--deploy", choices=["on_pr_approved", "on_merge_to_main"], help="keep only the configurations terraform.deploy lists for this event")
     d.add_argument("--format", choices=["json", "matrix", "text"], default="json", help="matrix = {\"include\": [...]} for a GitHub Actions strategy")
 
     ps = sub.add_parser("plan-summary", help="reduce a raw `terraform show -json` file to a sanitized summary (safe to share)")
@@ -248,7 +235,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.cmd == "discover":
         repo = Repo(root)
-        found = discover(repo, None if args.all else [c["path"] for c in git_changed_files(root, args.base)], args.deploy)
+        found = discover(repo, None if args.all else [c["path"] for c in git_changed_files(root, args.base)])
         if args.format == "matrix":
             print(json.dumps({"include": [{k: v for k, v in a.items() if k != "reasons"} for a in found]}))
         elif args.format == "text":
@@ -285,7 +272,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(json.dumps(ai_reviewer.build_payload(root, evidence, rules), indent=2))
         return 0
 
-    result = review(root, changed, plans, costs, checks, pr, use_ai=ai_requested(args, root), model=args.model)
+    result = review(root, changed, plans, costs, checks, pr, use_ai=ai_requested(args, root), model=args.model, production=args.production)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:
             json.dump(result, fh, indent=2)

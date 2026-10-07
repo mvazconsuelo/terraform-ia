@@ -1,7 +1,6 @@
-# Values shared by every Terraform configuration. Single source for the project name, the region and the
-# remote-state settings. main.tf and the workflows read this file; the pipeline exports the region as AWS_REGION.
+# Values shared by every Terraform configuration. Single source for the project name and the
+# remote-state settings. main.tf and the workflows read this file.
 project: shop
-region: us-east-1
 
 backend:
   encrypt: true
@@ -12,30 +11,10 @@ backend:
 ai:
   enabled: false
 
-# Which folders are Terraform root configurations (each has its own state and its own plan). The pull request is judged
-# per affected configuration: the ones whose files changed, or that use a changed module or shared file. Nothing is run
-# for the others. Folder names are yours: infra/web, terraform/networking, environments/dev, ...
-terraform:
-  roots: # globs; leave out to infer them (a folder nobody calls as a module that has resources, modules, a provider or a backend)
-    - environments/*
-  modules: # folders that hold shared modules
-    - modules
-  protected: # configurations where destroying or replacing stateful resources is CRITICAL
-    - environments/prod
-  deploy: # which affected configurations are applied, and when
-    on_pr_approved:
-      - environments/dev
-    on_merge_to_main:
-      - environments/prod
-  conventions: # optional: only for the family of configurations that share one layout
-    layout:
-      roots:
-        - environments/*
-      files:
-        - main.tf
-        - inputs.yaml
-      template_suffixes:
-        - .tftpl
-      identical:
-        - main.tf
-        - "*.tftpl"
+# Terraform root configurations (folders with their own state) are discovered automatically: a folder nobody calls as a
+# module that has resources, modules, a provider or a backend. Only the ones a change affects are planned and applied.
+# Optional settings, all off until you add them under a `terraform:` key:
+#   roots:      [infra/*]                  pin the roots instead of inferring them
+#   modules:    [modules]                  folders with shared modules (default)
+#   protected:  [infra/db]                 destroying stateful resources there is CRITICAL (PRs into main protect all of them)
+#   conventions.layout: {roots, files, template_suffixes, identical}   enables rules TF-004 / TF-006

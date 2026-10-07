@@ -118,7 +118,7 @@ jobs:
       - name: organisation rules (tools/reviewer/rules.yaml)
         run: PYTHONPATH=tools python -m reviewer.engine check --all
 
-  # Read-only plan of each affected configuration (the AWS keys of the GitHub Environment `<name>-plan`). Not for forks:
+  # Read-only plan of each affected configuration (the AWS keys of the GitHub Environment named like the PR's target branch). Not for forks:
   # they get no secrets. Nothing runs when no configuration is affected.
   plan:
     name: plan ${{ matrix.root }}
@@ -130,8 +130,7 @@ jobs:
     uses: ./.github/workflows/terraform.yml
     with:
       root: ${{ matrix.root }}
-      slug: ${{ matrix.slug }}
-      environment: ${{ matrix.plan_environment }}
+      environment: ${{ github.base_ref }}
       mode: plan
     secrets: inherit
 
@@ -160,7 +159,7 @@ jobs:
       - name: review
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}      # Settings > Secrets and variables > Actions > Secrets
-          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}              # ... > Variables (not secret; empty falls back to the default)
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}              # optional; empty falls back to the default
           BASE: origin/${{ github.base_ref }}
           # Author-written text goes through the environment, never interpolated into the script.
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -173,6 +172,8 @@ jobs:
           R_CONTRACT: ${{ needs.contract.result }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
           MATRIX: ${{ needs.discover.outputs.matrix }}
+          BASE_REF: ${{ github.base_ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           ARGS=(--base "$BASE" --out review.json --markdown review.md --pr-title "$PR_TITLE" --pr-body "$PR_BODY")
           ARGS+=(--check "terraform fmt=$R_FMT" --check "terraform validate=$R_VALIDATE" --check "terraform test=$R_TEST")
@@ -184,6 +185,8 @@ jobs:
           done < <(printf '%s' "$MATRIX" | jq -r '.include[] | "\(.root)|\(.slug)"')
           # The AI step is optional: off unless common.yaml sets ai.enabled and a key exists; never for forks (no secrets).
           [ "$IS_FORK" = "true" ] && ARGS+=(--no-ai)
+          # a PR into the production branch makes every configuration protected (destroying stateful resources is CRITICAL)
+          [ "$BASE_REF" = "$DEFAULT_BRANCH" ] && ARGS+=(--production)
           PYTHONPATH=tools python -m reviewer.engine review "${ARGS[@]}" || true   # the jobs above are the gate
           cat review.md >> "$GITHUB_STEP_SUMMARY"
 
