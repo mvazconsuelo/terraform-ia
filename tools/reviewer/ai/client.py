@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, Optional, Protocol
 
-DEFAULT_MODEL = "gemini-2.5-pro"
+DEFAULT_MODEL = "gemini-3.8-flash"  # stable Flash model with a free tier; Google retires old names for new users, override with the GEMINI_MODEL secret
 ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 

@@ -1,7 +1,8 @@
 name: pull-request
 
 # One workflow per PR. External tools and code do the judging: terraform (fmt, validate, test), TFLint, Checkov, the
-# repository contract (tools/reviewer) and a read-only plan of every Terraform configuration the PR affects. The final job builds ONE comment from those
+# repository contract (tools/reviewer) and a read-only plan of every Terraform configuration the PR affects and its target branch owns.
+# A PR into the default branch (production) skips the checks that already passed in develop and runs only the plan, the cost and the review. The final job builds ONE comment from those
 # results. Its optional AI section only explains the evidence (intent vs plan) and can never change the verdict.
 on:
   pull_request:
@@ -12,6 +13,7 @@ permissions:
 jobs:
   fmt:
     name: terraform fmt
+    if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,74 +42,129 @@ jobs:
       - id: d
         env:
           BASE: origin/${{ github.base_ref }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          matrix=$(PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --format matrix)
+          matrix=$(PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --branch "$BASE_REF" --format matrix)
           {
             echo "matrix=$matrix"
             echo "count=$(printf '%s' "$matrix" | jq '.include | length')"
             echo "roots=$(printf '%s' "$matrix" | jq -r '[.include[].root] | join(" ")')"
           } >> "$GITHUB_OUTPUT"
-          PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --format text >> "$GITHUB_STEP_SUMMARY"
+          PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --branch "$BASE_REF" --format text >> "$GITHUB_STEP_SUMMARY"
 
   validate:
     name: terraform validate
+    if: github.base_ref != github.event.repository.default_branch
     needs: discover
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~> 1.10"
-      - name: validate every module and every affected configuration
+      - name: validate the modules and the configurations this PR affects
         env:
           ROOTS: ${{ needs.discover.outputs.roots }}
+          BASE: origin/${{ github.base_ref }}
         run: |
           set -euo pipefail
-          for d in $(find modules -name versions.tf -not -path '*/.terraform/*' -exec dirname {} \;) $ROOTS; do
+          # one provider download shared by every folder (each would otherwise unpack its own ~800 MB copy)
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/tf-plugins"; mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          MODULES=$(PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --modules)
+          for d in $MODULES $ROOTS; do
             echo "== validate $d"
             (cd "$d" && terraform init -backend=false -input=false >/dev/null && terraform validate)
           done
+          echo "validated: ${MODULES:-no module} ${ROOTS:-no configuration}"
 
   test:
     name: terraform test
+    if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~> 1.10"
-      - name: test every module (mocked provider, no credentials)
+      - name: test the modules this PR touches, or that use a touched module (mocked provider, no credentials)
+        env:
+          BASE: origin/${{ github.base_ref }}
         run: |
           set -euo pipefail
-          for d in $(find modules -type d -name tests -not -path '*/.terraform/*' -exec dirname {} \;); do
+          export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/tf-plugins"; mkdir -p "$TF_PLUGIN_CACHE_DIR"
+          tested=0
+          while read -r d; do
+            [ -n "$d" ] && [ -d "$d/tests" ] || continue
             echo "== test $d"
             (cd "$d" && terraform init -backend=false -input=false >/dev/null && terraform test)
-          done
+            tested=$((tested + 1))
+          done < <(PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --modules)
+          echo "modules tested: $tested"
 
   tflint:
     name: TFLint
+    if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml
       - uses: terraform-linters/setup-tflint@v4
-      - run: |
-          tflint --init
-          tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl"
+      - name: lint the modules this PR affects (root configurations are not modules, so they are not linted)
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          tflint --init --config "$GITHUB_WORKSPACE/.tflint.hcl"
+          rc=0
+          while read -r d; do
+            [ -n "$d" ] || continue
+            echo "== tflint $d"
+            tflint --chdir "$d" --config "$GITHUB_WORKSPACE/.tflint.hcl" || rc=1
+          done < <(PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --modules)
+          exit $rc
 
   checkov:
     name: Checkov
+    if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bridgecrewio/checkov-action@v12
         with:
-          directory: modules
-          framework: terraform
-          soft_fail: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml checkov
+      - name: scan the modules this PR affects
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          args=()
+          while read -r d; do [ -n "$d" ] && args+=(-d "$d"); done < <(PYTHONPATH=tools python -m reviewer.engine discover --base "$BASE" --modules)
+          if [ "${#args[@]}" -eq 0 ]; then echo "No module affected; nothing to scan."; exit 0; fi
+          # --soft-fail is TEMPORARY: the findings are listed but do not block; decide skip checks or fixes, then remove it
+          checkov "${args[@]}" --framework terraform --compact --soft-fail
 
   contract:
     name: repository contract
+    if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -118,7 +175,7 @@ jobs:
       - name: organisation rules (tools/reviewer/rules.yaml)
         run: PYTHONPATH=tools python -m reviewer.engine check --all
 
-  # Read-only plan of each affected configuration (the AWS keys of the GitHub Environment named like the PR's target branch). Not for forks:
+  # Read-only plan of each affected configuration (with the AWS keys of the PR's target branch: develop or main). Not for forks:
   # they get no secrets. Nothing runs when no configuration is affected.
   plan:
     name: plan ${{ matrix.root }}
@@ -130,7 +187,7 @@ jobs:
     uses: ./.github/workflows/terraform.yml
     with:
       root: ${{ matrix.root }}
-      environment: ${{ github.base_ref }}
+      branch: ${{ github.base_ref }}
       mode: plan
     secrets: inherit
 
@@ -175,7 +232,7 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          ARGS=(--base "$BASE" --out review.json --markdown review.md --pr-title "$PR_TITLE" --pr-body "$PR_BODY")
+          ARGS=(--base "$BASE" --branch "$BASE_REF" --out review.json --markdown review.md --pr-title "$PR_TITLE" --pr-body "$PR_BODY")
           ARGS+=(--check "terraform fmt=$R_FMT" --check "terraform validate=$R_VALIDATE" --check "terraform test=$R_TEST")
           ARGS+=(--check "TFLint=$R_TFLINT" --check "Checkov=$R_CHECKOV" --check "repository contract=$R_CONTRACT")
           # one plan and one cost estimate per affected configuration, keyed by the root path

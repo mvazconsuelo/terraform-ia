@@ -1,8 +1,8 @@
-# PROD environment: a single Terraform configuration (environments/prod/main.tf) reads this file.
+# PROD environment: a single Terraform configuration (infra-example/prod/web-demo) reads this file.
 # Block-style YAML only (no braces, no inline lists). Values are validated by the modules' typed inputs.
 # Project and region are in the repo-root common.yaml; the mandatory tags are project + the three values below.
 
-environment: prod # must equal this folder's name (rule TF-005)
+environment: prod # must equal the parent folder name (checked by main.tf)
 owner: platform-team
 cost_center: cc-1234
 

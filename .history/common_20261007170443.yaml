@@ -9,7 +9,7 @@ backend:
 # Optional AI analysis (Gemini) in the PR comment. Off by default: nothing leaves the repository until you enable it.
 # It also needs the GEMINI_API_KEY secret. The deterministic review (the authority) works the same either way.
 ai:
-  enabled: true
+  enabled: false
 
 # Terraform root configurations (folders with their own state) are discovered automatically: a folder nobody calls as a
 # module that has resources, modules, a provider or a backend. Only the ones a change affects are planned and applied.
@@ -17,16 +17,4 @@ ai:
 #   roots:      [infra/*]                  pin the roots instead of inferring them
 #   modules:    [modules]                  folders with shared modules (default)
 #   protected:  [infra/db]                 destroying stateful resources there is CRITICAL (PRs into main protect all of them)
-#   accounts:   {develop: "<id>", main: "<id>"}  REQUIRED to run the pipeline: the AWS account of each branch's keys
-#   deploy:     {develop: [infra-example/dev/*]}  roots each branch may APPLY on push (globs); PRs still plan everything they affect;
-#                                      a branch with no entry applies every root the push affected
 #   conventions.layout: {roots, files, template_suffixes, identical}   enables rules TF-004 / TF-006
-terraform:
-  accounts: # the AWS account id of each branch's keys; the pipeline stops if the keys belong to another account
-    develop: "785995043299"
-    main: "<prod-account-id>"
-  deploy:
-    develop:
-      - infra-example/dev/*
-    main:
-      - infra-example/prod/*
