@@ -42,16 +42,7 @@ No folder names are assumed: it works the same for `infra/web`, `terraform/netwo
 
 <img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="AWS" src="https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazonwebservices&logoColor=white">&nbsp;<img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white">&nbsp;<img alt="Python" src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white">&nbsp;<img alt="TFLint" src="https://img.shields.io/badge/TFLint-5C4EE5?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="Checkov" src="https://img.shields.io/badge/Checkov-1F2A37?style=for-the-badge">&nbsp;<img alt="Infracost" src="https://img.shields.io/badge/Infracost-FF6B35?style=for-the-badge">&nbsp;<img alt="Gemini" src="https://img.shields.io/badge/Gemini_(optional)-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white">
 
-## Try it
-
-```bash
-python -m pip install pyyaml
-PYTHONPATH=tools python -m reviewer.engine check --all                      # the repository contract
-PYTHONPATH=tools python -m reviewer.engine discover --all --format text     # the root configurations it found
-(cd modules/vpc && terraform init -backend=false && terraform test)         # a module suite, no credentials
-```
-
-To run the whole pipeline on your own repository: [Setup](docs/install.md).
+To run the pipeline on your own repository: [Setup](docs/install.md).
 
 > [!NOTE]
 > Plans, checks and the PR comment have run on GitHub. `terraform apply` on merge and the AI summary have not been validated end to end yet.
