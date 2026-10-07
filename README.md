@@ -9,7 +9,7 @@ terra-ai/
 ├── .github/workflows/
 │   ├── pull-request.yml        discover affected configurations, checks, read-only plans, the PR comment
 │   └── terraform.yml           plan / apply of the affected configurations (matrix), or one by hand
-├── environments/               EXAMPLE root configurations (dev, prod); yours can live anywhere (infra/web, terraform/networking...)
+├── infra-example/              EXAMPLE root configurations (dev/web-demo, prod/web-demo); yours can live anywhere (infra/web, terraform/networking...); its README explains them
 ├── modules/                    reusable capabilities, each with README and `terraform test`
 ├── tools/reviewer/
 │   ├── rules.yaml              the review contract: the ONLY source of truth for checks.py
@@ -40,8 +40,8 @@ touched. The AI never decides what runs; it only receives the list of affected c
 PYTHONPATH=tools python -m reviewer.engine discover --base origin/main --format text   # or json | matrix
 ```
 
-The environment comes from the branch, not from folders: PRs and merges to `develop` use the GitHub Environment `develop`,
-those to `main` use `main`. Optional `terraform.conventions.layout` (used by the `environments/*` example) enables TF-004 / TF-006: allowed files per
+The AWS account comes from the branch, not from folders: PRs and merges to `develop` use the `AWS_*_DEVELOP` secrets,
+those to `main` use the `AWS_*_MAIN` secrets, and `terraform.accounts` in `common.yaml` checks that each pair belongs to the expected account. Optional `terraform.conventions.layout` (used by the `environments/*` example) enables TF-004 / TF-006: allowed files per
 root and files that must be identical across the family. Without it those rules do nothing. Roots that depend on each other
 (networking before workloads) are applied one at a time in path order; cross-root ordering beyond that is not modelled.
 
@@ -168,9 +168,9 @@ its README (usage, tags, lifecycle, cost) and a `terraform test` suite.
 ## Using it
 
 ```bash
-# an environment (see environments/README.md): credentials + region from the environment, no wrapper tool
+# an environment (see infra-example/README.md): credentials + region from the environment, no wrapper tool
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_REGION=us-east-1
-cd environments/dev && terraform init && terraform plan
+cd infra-example/dev/web-demo && terraform init && terraform plan
 
 # module tests, no credentials
 cd modules/vpc && terraform init -backend=false && terraform test
@@ -183,7 +183,7 @@ GEMINI_API_KEY=... PYTHONPATH=tools python -m reviewer.engine review --base orig
 PYTHONPATH=tools python -m reviewer.engine review --base origin/main --print-ai-payload              # what Gemini would see
 ```
 
-Credentials and the GitHub setup (Environments, secrets, variables) are in [environments/README.md](environments/README.md).
+Credentials and the GitHub setup (secrets and accounts) are in [infra-example/README.md](infra-example/README.md).
 
 ## Roadmap
 

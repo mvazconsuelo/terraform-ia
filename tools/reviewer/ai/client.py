@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, Optional, Protocol
 
-DEFAULT_MODEL = "gemini-2.5-pro"
+DEFAULT_MODEL = "gemini-3.1-pro-preview"  # the API rejected gemini-2.5-pro for new users; override with the GEMINI_MODEL secret
 ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 

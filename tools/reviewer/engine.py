@@ -25,7 +25,7 @@ from .cost import load_infracost
 from .model import Finding, severity_rank
 from .plan import load_plan
 from .report import render_markdown
-from .repo import Repo, git_changed_files, slug
+from .repo import Repo, git_changed_files, glob_match, slug
 
 RULES_PATH = Path(__file__).resolve().parent / "rules.yaml"
 
@@ -92,10 +92,19 @@ def decide(findings: List[Finding], checks: Optional[Dict[str, str]] = None) -> 
 # ----------------------------------------------------------------------------------------------------------------
 # Discovery: which root configurations a change touches (the workflows run terraform only for these)
 # ----------------------------------------------------------------------------------------------------------------
-def discover(repo: Repo, changed: Optional[List[str]]) -> List[Dict[str, Any]]:
-    """Root configurations to act on. `changed=None` means all of them. No folder name is assumed anywhere."""
+def for_branch(repo: Repo, found: List[Dict[str, Any]], branch: Optional[str]) -> List[Dict[str, Any]]:
+    """Keep the roots that terraform.deploy in common.yaml lists for `branch` (no entry for the branch = all of them)."""
+    patterns = (repo.cfg["deploy"] or {}).get(branch) if branch else None
+    if patterns is None:
+        return found
+    return [a for a in found if any(glob_match(g, a["root"]) for g in patterns)]
+
+
+def discover(repo: Repo, changed: Optional[List[str]], branch: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Root configurations to act on. `changed=None` means all of them. With `branch`, only the roots that branch owns
+    (terraform.deploy): a PR into develop must not plan or apply the production roots. No folder name is assumed anywhere."""
     found = repo.affected(changed) if changed is not None else [{"root": r, "reasons": ["all configurations requested"]} for r in repo.roots()]
-    return [{"root": a["root"], "slug": slug(a["root"]), "reasons": a["reasons"]} for a in found]
+    return [{"root": a["root"], "slug": slug(a["root"]), "reasons": a["reasons"]} for a in for_branch(repo, found, branch)]
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -112,12 +121,13 @@ def review(
     model: Optional[str] = None,
     ai_client: Any = None,
     production: bool = False,
+    branch: Optional[str] = None,
 ) -> Dict[str, Any]:
     plans, costs, checks = plans or {}, costs or {}, checks or {}
     repo, rules = Repo(root), load_rules()
     if production:  # the PR targets the production branch: every configuration in it is protected
         repo.cfg["protected"] = ["**"]
-    affected = repo.affected([c["path"] for c in changed]) if changed else [{"root": r, "reasons": ["whole repository reviewed"]} for r in repo.roots()]
+    affected = for_branch(repo, repo.affected([c["path"] for c in changed]) if changed else [{"root": r, "reasons": ["whole repository reviewed"]} for r in repo.roots()], branch)
 
     # 1. the authority: findings, risk, verdict
     findings = run_all(repo, rules, [c["path"] for c in changed] if changed else None, plans, costs)
@@ -207,6 +217,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     g = r.add_mutually_exclusive_group()
     g.add_argument("--ai", action="store_true", help="run the optional AI analysis (needs GEMINI_API_KEY); overrides common.yaml")
     g.add_argument("--no-ai", action="store_true", help="never run the AI analysis; overrides common.yaml")
+    r.add_argument("--branch", help="target branch of the PR: only the configurations terraform.deploy lists for it are reported")
     r.add_argument("--production", action="store_true", help="the PR targets the production branch: destroying stateful resources is CRITICAL everywhere")
     r.add_argument("--model", help="Gemini model (default: $GEMINI_MODEL)")
     r.add_argument("--print-ai-payload", action="store_true", help="print exactly what the AI step would be sent (sanitized) and exit")
@@ -219,6 +230,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     sel.add_argument("--base", help="git ref (or SHA); configurations affected by the changes since it")
     sel.add_argument("--all", action="store_true", help="every configuration")
     d.add_argument("--format", choices=["json", "matrix", "text"], default="json", help="matrix = {\"include\": [...]} for a GitHub Actions strategy")
+    d.add_argument("--branch", help="keep only the roots that terraform.deploy in common.yaml lists for this branch (no entry = all)")
+    d.add_argument("--modules", action="store_true", help="list the shared modules affected (one path per line) instead of the root configurations")
 
     ps = sub.add_parser("plan-summary", help="reduce a raw `terraform show -json` file to a sanitized summary (safe to share)")
     ps.add_argument("--plan", required=True)
@@ -235,7 +248,11 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.cmd == "discover":
         repo = Repo(root)
-        found = discover(repo, None if args.all else [c["path"] for c in git_changed_files(root, args.base)])
+        if args.modules:
+            mods = repo.module_dirs() if args.all else repo.affected_modules([c["path"] for c in git_changed_files(root, args.base)])
+            print("\n".join(mods))
+            return 0
+        found = discover(repo, None if args.all else [c["path"] for c in git_changed_files(root, args.base)], args.branch)
         if args.format == "matrix":
             print(json.dumps({"include": [{k: v for k, v in a.items() if k != "reasons"} for a in found]}))
         elif args.format == "text":
@@ -272,7 +289,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(json.dumps(ai_reviewer.build_payload(root, evidence, rules), indent=2))
         return 0
 
-    result = review(root, changed, plans, costs, checks, pr, use_ai=ai_requested(args, root), model=args.model, production=args.production)
+    result = review(root, changed, plans, costs, checks, pr, use_ai=ai_requested(args, root), model=args.model, production=args.production, branch=args.branch)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:
             json.dump(result, fh, indent=2)
