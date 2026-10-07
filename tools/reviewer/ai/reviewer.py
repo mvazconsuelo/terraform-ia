@@ -152,18 +152,40 @@ def replacements(plans: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def build_payload(root: str, evidence: Dict[str, Any], rules: List[dict]) -> Dict[str, Any]:
-    return {
+def build_payload(
+    root: str,
+    evidence: Dict[str, Any],
+    rules: List[dict],
+    affected: Optional[List[Dict[str, Any]]] = None,
+    verdict: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Everything the deterministic review produced, so the summary can cover all of it. `affected` is the list the
+    pipeline actually acted on (already limited to the target branch); `verdict` is the final risk and decision."""
+    arch = architecture_context(root, [c["path"] for c in evidence["changed_files"]])
+    if affected is not None:
+        arch["affected_configurations"] = affected
+    payload: Dict[str, Any] = {}
+    if verdict:
+        findings = evidence["deterministic_findings"]
+        payload["review"] = {
+            "risk": verdict.get("risk"),
+            "decision": verdict.get("decision"),
+            "decision_reasons": verdict.get("reasons") or [],
+            "rules_evaluated": len(rules),
+            "rules_violated": len([f for f in findings if f.get("rule_id")]),
+        }
+    payload.update({
         "repository_context": repository_context(rules),
-        "architecture_context": architecture_context(root, [c["path"] for c in evidence["changed_files"]]),
+        "architecture_context": arch,
         "pull_request": evidence["pull_request"],
         "changed_files": evidence["changed_files"],
+        "checks": evidence["checks"],
         "plan": evidence["plans"],
         "replacements": replacements(evidence["plans"]),
         "cost": evidence["costs"],
-        "checks": evidence["checks"],
         "deterministic_findings": evidence["deterministic_findings"],
-    }
+    })
+    return payload
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -234,10 +256,11 @@ def review(
     pr: Optional[Dict[str, str]],
     rules: List[dict],
     affected: Optional[List[Dict[str, Any]]] = None,
+    verdict: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """The whole AI step. Every piece of free text is grounded against the evidence; unverifiable references are removed."""
     evidence = build_evidence(root, changed, findings, plans, costs, checks, pr)
-    raw = ask(client, build_payload(root, evidence, rules))
+    raw = ask(client, build_payload(root, evidence, rules, affected, verdict))
     corpus, amounts, exists = evidence_corpus(evidence), allowed_amounts(costs), file_exists(root)
     notes: List[str] = []
 
@@ -246,15 +269,4 @@ def review(
         notes.extend(n)
         return out or ""
 
-    return {
-        "intent_vs_infrastructure": {
-            "status": raw["intent_vs_infrastructure"]["status"],
-            "explanation": clean(raw["intent_vs_infrastructure"]["explanation"]),
-        },
-        "architecture_impact": {
-            "severity": raw["architecture_impact"]["severity"],
-            "explanation": clean(raw["architecture_impact"]["explanation"]),
-        },
-        "reviewer_summary": clean(raw["reviewer_summary"]),
-        "grounding_notes": sorted(set(notes)),
-    }
+    return {"summary": clean(raw["summary"]), "grounding_notes": sorted(set(notes))}

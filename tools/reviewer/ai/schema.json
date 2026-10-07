@@ -1,29 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AIReview",
-  "description": "Contract of the optional AI analysis. Single source of truth: reviewer.ai.reviewer validates the model output against this file.",
+  "description": "Contract of the optional AI summary. Single source of truth: reviewer.ai.reviewer validates the model output against this file.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["intent_vs_infrastructure", "architecture_impact", "reviewer_summary"],
+  "required": ["summary"],
   "properties": {
-    "intent_vs_infrastructure": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["status", "explanation"],
-      "properties": {
-        "status": { "enum": ["match", "mismatch", "unclear"] },
-        "explanation": { "type": "string", "minLength": 1 }
-      }
-    },
-    "architecture_impact": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["severity", "explanation"],
-      "properties": {
-        "severity": { "enum": ["none", "low", "medium", "high", "critical"] },
-        "explanation": { "type": "string", "minLength": 1 }
-      }
-    },
-    "reviewer_summary": { "type": "string", "minLength": 1 }
+    "summary": { "type": "string", "minLength": 1 }
   }
 }

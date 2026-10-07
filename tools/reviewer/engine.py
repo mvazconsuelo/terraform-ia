@@ -133,6 +133,7 @@ def review(
     findings = run_all(repo, rules, [c["path"] for c in changed] if changed else None, plans, costs)
     findings.sort(key=lambda f: (severity_rank(f.severity), f.file or "", f.line or 0))
     verdict = decide(findings, checks)
+    risk = max_severity(findings)
 
     # 2. optional AI interpretation; every failure mode degrades to "not executed", the verdict is already final
     analysis: Optional[Dict[str, Any]] = None
@@ -146,19 +147,21 @@ def review(
             status["reason"] = "GEMINI_API_KEY is not set"
         else:
             try:
-                analysis = ai_reviewer.review(client, root, changed, findings, plans, costs, checks, pr, rules, affected)
+                analysis = ai_reviewer.review(client, root, changed, findings, plans, costs, checks, pr, rules, affected, {"risk": risk, "decision": verdict["decision"], "reasons": verdict["reasons"]})
                 status = {"requested": True, "executed": True, "reason": None, "model": getattr(client, "model", None)}
             except AIError as e:
                 status["reason"] = "The AI step failed and was skipped: {}".format(str(e)[:200])
 
     return {
-        "risk": max_severity(findings),
+        "risk": risk,
         "decision": verdict["decision"],
         "decision_reasons": verdict["reasons"],
         "findings": [f.to_dict() for f in findings],
         "ai_analysis": analysis,
         "ai_status": status,
         "affected": affected,
+        "changed_files": [{"path": c["path"], "status": c.get("status", "modified")} for c in changed],
+        "rules_evaluated": len(rules),
         "plans": plans,
         "costs": costs,
         "checks": checks,
@@ -286,7 +289,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         rules = load_rules()
         findings = run_all(Repo(root), rules, [c["path"] for c in changed], plans, costs)
         evidence = ai_reviewer.build_evidence(root, changed, findings, plans, costs, checks, pr)
-        print(json.dumps(ai_reviewer.build_payload(root, evidence, rules), indent=2))
+        repo = Repo(root)
+        affected = for_branch(repo, repo.affected([c["path"] for c in changed]), args.branch)
+        verdict = decide(findings, checks)
+        verdict = {"risk": max_severity(findings), "decision": verdict["decision"], "reasons": verdict["reasons"]}
+        print(json.dumps(ai_reviewer.build_payload(root, evidence, rules, affected, verdict), indent=2))
         return 0
 
     result = review(root, changed, plans, costs, checks, pr, use_ai=ai_requested(args, root), model=args.model, production=args.production, branch=args.branch)

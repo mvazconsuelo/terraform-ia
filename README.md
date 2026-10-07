@@ -62,10 +62,14 @@ Each tool is the authority for its own domain; `reviewer` is not another Checkov
    `terraform plan` and the Infracost estimate, and computes the verdict: `REQUEST_CHANGES` if any confirmed finding is HIGH
    or CRITICAL or any external check failed; otherwise `PASS` (lower severities are still listed). There is no approve and
    no merge.
-2. **The PR comment is built by code** (`report.py`): tests, plan, replacements, cost, governance, module standard.
-3. **Optional AI analysis.** Gemini receives a controlled, sanitized payload and returns three texts validated against
-   `ai/schema.json`: *Intent vs Infrastructure*, *Architecture Impact* and *Reviewer Summary*. It returns no findings, so it
-   cannot add, reword or remove one, and it cannot change the verdict.
+2. **The PR comment is built by code** (`report.py`): affected configurations, changed files, validation and tests, plan,
+   resource changes, replacements, cost, governance, module standard, repository contract, finding counts and the decision.
+   That is the evidence.
+3. **Optional AI Summary.** Gemini receives the whole deterministic result (verdict, affected configurations, checks, plan,
+   replacements, cost, findings, the PR text) as a controlled, sanitized payload and returns ONE text, validated against
+   `ai/schema.json`: an executive summary a reviewer can read instead of the whole report. It sits at the top of the comment;
+   the evidence follows. It returns no findings and no decision, so it cannot add, reword or remove a finding, and it
+   cannot change the risk or the verdict.
 
 **Trust boundary.** The payload holds the repository context (derived from the repo itself), the PR title and description,
 the changed files, the plan summary and replacements, the cost estimate, the check results and the deterministic findings;
@@ -77,7 +81,8 @@ Terraform address, file and price it mentions is checked against the evidence; w
 
 **Failure behaviour.** The AI step is off by default (`ai.enabled: false` in `common.yaml`) and needs `GEMINI_API_KEY`. If it
 is disabled, has no key, fails, returns invalid output twice, or the PR comes from a fork, the comment is identical except
-for the *AI Analysis* section, which says `AI review was not executed.` and why.
+for the *AI Summary* section, which says `AI summary unavailable.` (or that the AI is disabled) and why. A failing model
+never turns a PASS into a failure.
 
 ## The review contract (`rules.yaml`)
 

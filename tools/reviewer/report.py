@@ -1,25 +1,29 @@
 """Markdown rendering of the PR comment.
 
-Everything above "AI Analysis" is produced by code from deterministic inputs (checks, plan, Infracost, rules). The AI
-section is the only part that comes from a model; with the AI off, the rest of the comment is exactly the same.
+Everything except "AI Summary" is produced by code from deterministic inputs (checks, plan, Infracost, rules): that is the
+evidence. "AI Summary" is the only text from a model, a human-readable reading of that same evidence; with the AI off or
+failing, the rest of the comment is exactly the same.
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List
 
 MARKER = "<!-- terra-review -->"
-ICON = {"CRITICAL": "🛑", "HIGH": "🔴", "MEDIUM": "🟠", "LOW": "🟡", "INFO": "🔵"}
-STATUS = {"success": "✅", "failure": "❌", "cancelled": "⏹️", "skipped": "⏭️"}
+STATUS_LABEL = {"success": "✅ PASS", "failure": "❌ FAIL", "cancelled": "⏹️ CANCELLED", "skipped": "⏭️ SKIPPED"}
 MANDATORY_TAGS = ["Environment", "Owner", "CostCenter", "Project"]
 STANDARD_CATEGORIES = ("MODULE_STANDARD", "ARCHITECTURE")
+SEVERITY_ROWS = [("CRITICAL", "Critical"), ("HIGH", "High"), ("MEDIUM", "Medium"), ("LOW", "Low"), ("INFO", "Informational")]
+ICON = {"CRITICAL": "🛑", "HIGH": "🔴", "MEDIUM": "🟠", "LOW": "🟡", "INFO": "🔵"}
+MAX_LIST = 50
 
 
-def _plural(n: int, word: str) -> str:
-    return "{} {}{}".format(n, word, "" if n == 1 else "s")
-
-
-def _money(v: Any) -> str:
-    return "n/a" if v is None else "${:,.0f}".format(v)
+def _money(v: Any, signed: bool = False) -> str:
+    if v is None:
+        return "n/a"
+    text = "${:,.2f}".format(abs(v))
+    if signed:
+        return ("+" if v >= 0 else "-") + text
+    return ("-" if v < 0 else "") + text
 
 
 def _loc(f: Dict[str, Any]) -> str:
@@ -28,142 +32,265 @@ def _loc(f: Dict[str, Any]) -> str:
     return "{}:{}".format(f["file"], f["line"]) if f.get("line") else f["file"]
 
 
-def _validation(checks: Dict[str, str]) -> List[str]:
-    if not checks:
-        return ["_No check results were provided._"]
-    return ["{} {}".format(STATUS.get(status, "❔"), name) for name, status in checks.items()]
+def _cap(lines: List[str]) -> List[str]:
+    return lines if len(lines) <= MAX_LIST else lines[:MAX_LIST] + ["... and {} more".format(len(lines) - MAX_LIST)]
 
 
-def _plan_section(plans: Dict[str, dict]) -> List[str]:
-    if not plans:
-        return ["_No terraform plan available (it needs the cloud credentials of the configuration)._"]
-    out: List[str] = []
-    for env, plan in sorted(plans.items()):
-        c = plan.get("counts", {})
-        add = c.get("create", 0) + c.get("replace", 0)
-        change = c.get("update", 0)
-        destroy = c.get("delete", 0) + c.get("replace", 0)
-        out += ["**{}**".format(env), "", "🟢 {} to add".format(_plural(add, "resource")),
-                "🟡 {} to change".format(_plural(change, "resource")), "🔴 {} to destroy".format(_plural(destroy, "resource")), ""]
+# ----------------------------------------------------------------------------------------------------------------
+# AI Summary: the only generated text
+# ----------------------------------------------------------------------------------------------------------------
+def _ai_summary(review: Dict[str, Any]) -> List[str]:
+    out = ["## AI Summary", ""]
+    analysis = review.get("ai_analysis")
+    status = review.get("ai_status") or {}
+    if not analysis:
+        if status.get("requested"):
+            out += ["⚠️ AI summary unavailable.", "", "The deterministic review completed successfully."]
+            reason = " ".join(str(status.get("reason") or "").split())
+            if reason:
+                out += ["", "_{}_".format(reason)]
+        else:
+            out += ["ℹ️ AI summary is disabled (`ai.enabled` is false in `common.yaml`).", "", "The deterministic review completed successfully."]
+        return out
+    out.append(analysis["summary"])
+    notes = analysis.get("grounding_notes") or []
+    if notes:
+        out += ["", "> ⚠️ Parts of the summary could not be verified against the plan, the files or Infracost and were removed: " + "; ".join(notes) + "."]
     return out
 
 
-def _replacements(plans: Dict[str, dict]) -> List[str]:
+# ----------------------------------------------------------------------------------------------------------------
+# Evidence sections
+# ----------------------------------------------------------------------------------------------------------------
+def _affected(affected: List[Dict[str, Any]], changed: List[Dict[str, Any]]) -> List[str]:
+    if not affected:
+        return ["_No Terraform configuration is affected by this change; Terraform was not run._"]
+    paths = [c["path"] for c in changed]
     out: List[str] = []
-    for env, plan in sorted(plans.items()):
+    for a in affected:
+        root = a["root"]
+        under = [p for p in paths if p.startswith(root + "/")]
+        direct = sorted(p[len(root) + 1:] for p in under)
+        direct_reasons = {"{} changed".format(p) for p in under}
+        indirect = [r for r in a["reasons"] if r not in direct_reasons]
+        out += ["### `{}`".format(root), ""]
+        if direct:
+            out += ["Changed configuration:", ""] + ["- `{}`".format(f) for f in _cap(direct)] + [""]
+        if indirect:
+            out += ["Affected through:", ""] + ["- {}".format(r) for r in indirect[:5]] + [""]
+    return out[:-1] if out and out[-1] == "" else out
+
+
+def _changed_files(changed: List[Dict[str, Any]]) -> List[str]:
+    if not changed:
+        return ["_No changed files were provided._"]
+    rows = ["| File | Change |", "|---|---|"]
+    for c in changed[:MAX_LIST]:
+        rows.append("| `{}` | {} |".format(c["path"], str(c.get("status") or "modified").capitalize()))
+    if len(changed) > MAX_LIST:
+        rows.append("| _... and {} more_ | |".format(len(changed) - MAX_LIST))
+    return rows
+
+
+def _checks(checks: Dict[str, str]) -> List[str]:
+    if not checks:
+        return ["_No check results were provided._"]
+    rows = ["| Check | Result |", "|---|---|"]
+    for name, status in checks.items():
+        rows.append("| {} | {} |".format(name[:1].upper() + name[1:], STATUS_LABEL.get(status, "❔ " + str(status).upper())))
+    ran = [s for s in checks.values() if s != "skipped"]
+    passed = sum(1 for s in ran if s == "success")
+    result = "**Result:** {}/{} checks passed.".format(passed, len(ran)) if ran else "**Result:** no check ran."
+    skipped = len(checks) - len(ran)
+    if skipped:
+        result += " {} skipped.".format(skipped)
+    return rows + ["", result]
+
+
+def _by_action(plan: Dict[str, Any]):
+    rcs = plan.get("resource_changes", [])
+    add = [rc["address"] for rc in rcs if rc.get("actions") == ["create"]]
+    change = [rc["address"] for rc in rcs if rc.get("actions") == ["update"]]
+    destroy = [rc["address"] for rc in rcs if rc.get("actions") == ["delete"]]
+    replace = [rc["address"] for rc in rcs if rc.get("replace")]
+    return add, change, destroy, replace
+
+
+def _plan(plans: Dict[str, dict]) -> List[str]:
+    if not plans:
+        return ["_No Terraform plan was available._"]
+    multi = len(plans) > 1
+    h = "####" if multi else "###"
+    out: List[str] = []
+    for root, plan in sorted(plans.items()):
+        add, change, destroy, replace = _by_action(plan)
+        if multi:
+            out += ["### `{}`".format(root), ""]
+        line = "{} to add · {} to change · {} to destroy".format(len(add), len(change), len(destroy))
+        if replace:
+            line += " · {} to replace".format(len(replace))
+        out += ["**Plan:** `{}`".format(line), ""]
+        for title, sign, items in (("Resources to add", "+", add), ("Resources to change", "~", change),
+                                   ("Resources to destroy", "-", destroy), ("Resources to replace", "-/+", replace)):
+            if title.endswith("replace") and not items:
+                continue
+            body = _cap(["{} {}".format(sign, a) for a in items]) if items else ["None"]
+            out += ["{} {}".format(h, title), "", "```text"] + body + ["```", ""]
+    return out[:-1]
+
+
+def _resource_changes(plans: Dict[str, dict]) -> List[str]:
+    if not plans:
+        return ["_No Terraform plan was available._"]
+    multi = len(plans) > 1
+    groups: Dict[str, List[Dict[str, str]]] = {"Added": [], "Modified": [], "Destroyed": [], "Replaced": []}
+    for root, plan in sorted(plans.items()):
+        for rc in plan.get("resource_changes", []):
+            actions = rc.get("actions") or []
+            key = "Replaced" if rc.get("replace") else {"create": "Added", "update": "Modified", "delete": "Destroyed"}.get(actions[0] if len(actions) == 1 else "")
+            if key:
+                groups[key].append({"root": root, "address": rc.get("address") or "", "type": rc.get("type") or ""})
+    out: List[str] = []
+    for title, items in groups.items():
+        if not items:
+            continue
+        head = "| Resource | Type | Configuration |" if multi else "| Resource | Type |"
+        sep = "|---|---|---|" if multi else "|---|---|"
+        out += ["### {}".format(title), "", head, sep]
+        for it in items[:MAX_LIST]:
+            row = "| `{}` | `{}` |".format(it["address"], it["type"])
+            out.append(row + (" `{}` |".format(it["root"]) if multi else ""))
+        if len(items) > MAX_LIST:
+            out.append("| _... and {} more_ | | |".format(len(items) - MAX_LIST) if multi else "| _... and {} more_ | |".format(len(items) - MAX_LIST))
+        out.append("")
+    return out[:-1] if out else ["_The plan changes no resources._"]
+
+
+def _replacements(plans: Dict[str, dict]) -> List[str]:
+    if not plans:
+        return ["_No Terraform plan was available, so replacements could not be checked._"]
+    items: List[str] = []
+    for root, plan in sorted(plans.items()):
         for rc in plan.get("resource_changes", []):
             if rc.get("replace"):
                 paths = rc.get("replace_paths") or []
                 forced = " (forced by: {})".format(", ".join(".".join(map(str, p)) if isinstance(p, list) else str(p) for p in paths)) if paths else ""
-                out.append("⚠️ `{}` in **{}**{}".format(rc.get("address"), env, forced))
-    if not out:
-        return ["✅ No resource is replaced."]
-    return out + ["", "A replacement destroys the resource and creates a new one; for stateful resources that means data loss or downtime."]
+                items.append("⚠️ `{}` in `{}`{}".format(rc.get("address"), root, forced))
+    if not items:
+        return ["✅ **No resource replacement detected.**", "", "`Resources requiring replacement: 0`"]
+    return _cap(items) + ["", "`Resources requiring replacement: {}`".format(len(items)), "",
+                          "A replacement destroys the resource and creates a new one; for stateful resources that means data loss or downtime."]
 
 
 def _cost(costs: Dict[str, dict]) -> List[str]:
     if not costs:
-        return ["_No cost estimate available (Infracost was not run)._"]
+        return ["_No cost estimate was available._"]
+    multi = len(costs) > 1
     out: List[str] = []
-    for env, c in sorted(costs.items()):
+    for root, c in sorted(costs.items()):
         delta = c.get("monthly_delta")
-        out.append("**{}**: {}/month → {}/month".format(env, _money(c.get("current_monthly_cost")), _money(c.get("proposed_monthly_cost"))))
+        if multi:
+            out += ["### `{}`".format(root), ""]
         if delta is not None:
-            out.append("{} {:+,.0f}/month".format("📈" if delta > 0 else "📉" if delta < 0 else "➖", delta))
+            out += ["**Estimated monthly change: {}**".format(_money(delta, True)), ""]
+        out += ["Current {}/month → proposed {}/month.".format(_money(c.get("current_monthly_cost")), _money(c.get("proposed_monthly_cost"))), ""]
         drivers = c.get("top_cost_drivers") or []
         if drivers:
-            out += ["", "Main drivers:"] + ["- {} ({}/month)".format(d["resource"], _money(d["monthly_cost"])) for d in drivers[:3]]
-        out.append("")
-    return out
+            out += ["| Resource | Monthly cost |", "|---|---:|"] + ["| `{}` | {} |".format(d["resource"], _money(d["monthly_cost"])) for d in drivers[:5]] + [""]
+        if delta is not None:
+            out += ["**Annualized impact:** {}".format(_money(delta * 12, True)), ""]
+    return out[:-1]
 
 
 def _governance(plans: Dict[str, dict], findings: List[Dict[str, Any]]) -> List[str]:
-    out: List[str] = []
+    problems: List[str] = []
     tagged = [rc for plan in plans.values() for rc in plan.get("resource_changes", []) if rc.get("tag_keys") is not None]
-    if tagged:
-        for tag in MANDATORY_TAGS:
-            missing = [rc["address"] for rc in tagged if tag not in rc["tag_keys"]]
-            out.append("✅ {}".format(tag) if not missing else "❌ {} missing on {}".format(tag, ", ".join("`{}`".format(m) for m in missing[:5])))
-    gov = [f for f in findings if f["category"] == "GOVERNANCE"]
-    for f in gov:
-        out.append("❌ {} (`{}`) — {}".format(f["title"], _loc(f), f["evidence"]))
-    if not tagged and not gov:
-        out.append("✅ No governance violations found in the code.")
-    return out
+    for tag in MANDATORY_TAGS:
+        missing = [rc["address"] for rc in tagged if tag not in rc["tag_keys"]]
+        if missing:
+            problems.append("❌ Tag `{}` is missing on {}".format(tag, ", ".join("`{}`".format(m) for m in missing[:5])))
+    for f in (f for f in findings if f["category"] == "GOVERNANCE"):
+        problems.append("❌ {} (`{}`) — {}".format(f["title"], _loc(f), f["evidence"]))
+    if problems:
+        return problems
+    return ["✅ **No governance violations found.**", "",
+            "Validated: mandatory tags on the taggable resources in the code{}.".format(" and on the planned resources" if tagged else "")]
 
 
 def _standard(findings: List[Dict[str, Any]]) -> List[str]:
     items = [f for f in findings if f["category"] in STANDARD_CATEGORIES]
     if not items:
-        return ["✅ The change follows the repository module contract."]
+        return ["✅ **The change follows the repository module contract.**", "",
+                "Validated: required module files, resource naming, typed variables, module boundaries and domain layout."]
     out: List[str] = []
     for f in items:
         out += ["⚠️ **{}**{}".format(f["title"], " (`{}`)".format(f["rule_id"]) if f.get("rule_id") else ""), "", f["evidence"], ""]
         if f.get("expected"):
             out += ["Expected:", "`{}`".format(f["expected"]), ""]
         out += ["Detected:", "`{}`".format(_loc(f)), ""]
+    return out[:-1]
+
+
+def _contract(findings: List[Dict[str, Any]], rules_evaluated: Any) -> List[str]:
+    violations = [f for f in findings if f.get("rule_id")]
+    out = ["✅ **No contract violations detected.**" if not violations else "❌ **{} contract violation{} detected.**".format(len(violations), "" if len(violations) == 1 else "s"), ""]
+    if rules_evaluated is not None:
+        out.append("**Rules evaluated:** {}  ".format(rules_evaluated))
+    out.append("**Violations:** {}".format(len(violations)))
     return out
 
 
 def _other(findings: List[Dict[str, Any]]) -> List[str]:
-    items = [f for f in findings if f["category"] not in STANDARD_CATEGORIES and f["category"] != "GOVERNANCE"]
     out: List[str] = []
-    for f in items:
+    for f in (f for f in findings if f["category"] not in STANDARD_CATEGORIES and f["category"] != "GOVERNANCE"):
         rid = " `{}`".format(f["rule_id"]) if f.get("rule_id") else ""
-        out.append("{} **{} / {}**{} — {} (`{}`){}".format(
-            ICON.get(f["severity"], ""), f["severity"], f["category"], rid, f["title"], _loc(f),
-            "" if f["source"].startswith("deterministic") else " _[AI, {} evidence]_".format(f["type"].lower())))
+        out.append("{} **{} / {}**{} — {} (`{}`)".format(ICON.get(f["severity"], ""), f["severity"], f["category"], rid, f["title"], _loc(f)))
         out.append("  - {}".format(f["evidence"]))
         out.append("  - Fix: {}".format(f["recommendation"]))
     return out
 
 
-INTENT = {"match": "✅ The plan matches the stated intent", "mismatch": "⚠️ The plan does not match the stated intent", "unclear": "❔ Intent versus plan is unclear"}
-IMPACT = {"none": "⚪ none", "low": "🟡 low", "medium": "🟠 medium", "high": "🔴 high", "critical": "🛑 critical"}
+def _findings(findings: List[Dict[str, Any]]) -> List[str]:
+    rows = ["| Severity | Findings |", "|---|---:|"]
+    for key, label in SEVERITY_ROWS:
+        rows.append("| {} | {} |".format(label, sum(1 for f in findings if f["severity"] == key)))
+    other = _other(findings)
+    return rows + (["", "### Details", ""] + other if other else [])
 
 
-def _ai(review: Dict[str, Any]) -> List[str]:
-    out = ["---", "", "### AI Analysis", ""]
-    a = review.get("ai_analysis")
-    if not a:
-        out.append("`AI review was not executed.`")
-        reason = (review.get("ai_status") or {}).get("reason")
-        if reason:
-            out += ["", "_{}_".format(reason)]
-        return out
-    intent, impact = a["intent_vs_infrastructure"], a["architecture_impact"]
-    out += ["#### Intent vs Infrastructure", "", "**{}**".format(INTENT.get(intent["status"], intent["status"])), "", intent["explanation"], "",
-            "#### Architecture Impact", "", "**Severity: {}**".format(IMPACT.get(impact["severity"], impact["severity"])), "", impact["explanation"], "",
-            "#### Reviewer Summary", "", a["reviewer_summary"]]
-    notes = a.get("grounding_notes") or []
-    if notes:
-        out += ["", "> ⚠️ Parts of the AI text could not be verified against the plan, the files or Infracost and were removed: " + "; ".join(notes) + "."]
-    return out
-
-
-def _affected(affected: List[Dict[str, Any]]) -> List[str]:
-    if not affected:
-        return ["_No Terraform configuration is affected by this change; terraform was not run._"]
-    out: List[str] = []
-    for a in affected:
-        out.append("- `{}` — {}".format(a["root"], "; ".join(a["reasons"][:3]) + (" …" if len(a["reasons"]) > 3 else "")))
-    return out
+def _decision(review: Dict[str, Any]) -> List[str]:
+    reasons = review.get("decision_reasons") or []
+    out = ["**{}**".format(review["decision"]), ""]
+    if reasons:
+        out += ["The deterministic review found blocking issues:", ""] + ["- {}".format(r) for r in reasons]
+    else:
+        out.append("The deterministic review found no blocking violations.")
+    return out + ["", "*This reviewer does not approve, merge, or apply infrastructure.*"]
 
 
 def render_markdown(review: Dict[str, Any]) -> str:
     plans, costs, findings = review.get("plans", {}), review.get("costs", {}), review["findings"]
-    lines = [MARKER, "## Infrastructure Review", "",
-             "**Risk:** {}  ·  **Decision:** {}{} _(this reviewer cannot approve or merge)_".format(review["risk"], review["decision"], " — " + "; ".join(review["decision_reasons"]) if review.get("decision_reasons") else ""), "",
-             "### Affected Terraform configurations", ""] + _affected(review.get("affected", []))
-    lines += ["", "### Tests", ""] + _validation(review.get("checks", {}))
-    lines += ["", "### Terraform Plan", ""] + _plan_section(plans)
-    lines += ["### Replacement", ""] + _replacements(plans)
-    lines += ["", "### Cost", ""] + _cost(costs)
-    lines += ["### Governance", ""] + _governance(plans, findings)
-    lines += ["", "### Module Standard", ""] + _standard(findings)
-    other = _other(findings)
-    if other:
-        lines += ["", "### Other findings", ""] + other
-    lines += [""] + _ai(review)
-    lines += ["", "<sub>Advisory only. Deterministic results are authoritative; the AI section only interprets them.</sub>"]
+    changed = review.get("changed_files", [])
+    sections = [
+        _ai_summary(review),
+        ["## Affected Terraform configurations", ""] + _affected(review.get("affected", []), changed),
+        ["## Changed files", ""] + _changed_files(changed),
+        ["## Validation & Tests", ""] + _checks(review.get("checks", {})),
+        ["## Terraform Plan", ""] + _plan(plans),
+        ["## Resource Changes", ""] + _resource_changes(plans),
+        ["## Replacement", ""] + _replacements(plans),
+        ["## Cost", ""] + _cost(costs),
+        ["## Governance", ""] + _governance(plans, findings),
+        ["## Module Standard", ""] + _standard(findings),
+        ["## Repository Contract", ""] + _contract(findings, review.get("rules_evaluated")),
+        ["## Deterministic Findings", ""] + _findings(findings),
+        ["## Review Decision", ""] + _decision(review),
+    ]
+    lines = [MARKER, "# Infrastructure Review", "",
+             "**Risk:** {} · **Decision:** {}".format(review["risk"], review["decision"]),
+             "*This reviewer cannot approve, merge, or apply infrastructure.*", "", "---", ""]
+    for i, section in enumerate(sections):
+        lines += section
+        if i < len(sections) - 1:
+            lines += ["", "---", ""]
     return "\n".join(lines) + "\n"
