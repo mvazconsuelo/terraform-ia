@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 
 def _num(v: Any) -> Optional[float]:
+    """Convert to float, or None when the value is missing or not a number."""
     try:
         return float(v)
     except (TypeError, ValueError):
@@ -13,6 +14,8 @@ def _num(v: Any) -> Optional[float]:
 
 
 def summarize_infracost(doc: Dict[str, Any], top: int = 10) -> Dict[str, Any]:
+    """Reduce Infracost JSON to the totals, the monthly delta, every resource with its monthly cost (None = usage-
+    based) and what Infracost could not price."""
     total = _num(doc.get("totalMonthlyCost"))
     past = _num(doc.get("pastTotalMonthlyCost"))
     diff = _num(doc.get("diffTotalMonthlyCost"))
@@ -51,5 +54,6 @@ def summarize_infracost(doc: Dict[str, Any], top: int = 10) -> Dict[str, Any]:
 
 
 def load_infracost(path: str) -> Dict[str, Any]:
+    """Read an Infracost JSON file and summarize it."""
     with open(path, encoding="utf-8") as fh:
         return summarize_infracost(json.load(fh))

@@ -28,14 +28,17 @@ TEXT_SUFFIXES = (".tf", ".hcl", ".yaml", ".yml", ".md", ".json", ".tftpl")
 
 
 class AIReviewError(AIError):
+    """The model's answer could not be used: invalid JSON, or it failed the schema twice."""
     pass
 
 
 def load_schema() -> Dict[str, Any]:
+    """Read ai/schema.json, the contract of the AI answer."""
     return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
 def load_prompt() -> str:
+    """Read ai/prompt.md, the system prompt."""
     return PROMPT_PATH.read_text(encoding="utf-8")
 
 
@@ -51,6 +54,8 @@ def build_evidence(
     checks: Dict[str, str],
     pr: Optional[Dict[str, str]],
 ) -> Dict[str, Any]:
+    """Collect what the AI may see: sanitized changed files within a size budget, the PR text, checks, findings,
+    plans and costs. Blocked and non-text files are skipped."""
     files: List[Dict[str, Any]] = []
     total = 0
     skipped: List[str] = []

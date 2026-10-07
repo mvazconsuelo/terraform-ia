@@ -11,7 +11,7 @@ One JSON document with:
   which modules they use, and `affected_configurations`: the configurations this change touches and why.
 - `pull_request`: the title and description the author wrote (the stated intent). May be null.
 - `changed_files`: sanitized contents of the files the PR changes.
-- `checks`: result of each check (fmt, validate, test, TFLint, Checkov, repository contract): success, failure or skipped.
+- `checks`: result of each check (fmt, validate, test, TFLint, Checkov, repository contract): success, failure, skipped, or warning (it reported findings that do not block; never call a warning a clean pass).
 - `plan`: sanitized `terraform plan` summary per root configuration (counts and resource changes). Empty when no plan ran.
 - `replacements`: the resources the plan destroys and recreates, with the attributes that force it.
 - `cost`: the Infracost estimate per root configuration. The only source of prices. Empty when it did not run.

@@ -16,6 +16,8 @@ INTERESTING = {
 
 
 def summarize_plan(plan: Dict[str, Any]) -> Dict[str, Any]:
+    """Reduce `terraform show -json` to counts and a sanitized list of changes. State and sensitive values are
+    dropped."""
     changes: List[Dict[str, Any]] = []
     counts = {"create": 0, "update": 0, "delete": 0, "replace": 0}
     for rc in plan.get("resource_changes", []):

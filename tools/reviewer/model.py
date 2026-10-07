@@ -14,6 +14,7 @@ DECISIONS = ["PASS", "REQUEST_CHANGES"]
 
 @dataclass
 class Finding:
+    """One deterministic result of a check: what was found, where, why it matters and how to fix it."""
     severity: str
     category: str
     title: str
@@ -30,8 +31,10 @@ class Finding:
     expected: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
+        """Plain dict for the JSON output and the AI payload."""
         return asdict(self)
 
 
 def severity_rank(sev: str) -> int:
+    """Position of a severity (0 = CRITICAL); lower is worse."""
     return SEVERITIES.index(sev) if sev in SEVERITIES else len(SEVERITIES)
