@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" role="img" aria-label="terra-ai architecture: branches, GitHub Actions, reviewer, AWS accounts and state">
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#22D3EE"/></marker>
+  </defs>
+  <rect width="1200" height="520" fill="#0B0F14"/>
+  <g font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#E6EDF3">
+    <rect x="30" y="40" width="190" height="70" rx="10" fill="#1F2A37" stroke="#22D3EE"/><text x="125" y="70" text-anchor="middle" font-weight="700">Feature branch</text><text x="125" y="92" text-anchor="middle" fill="#9AA7B4">code change</text>
+    <rect x="30" y="200" width="190" height="70" rx="10" fill="#1F2A37" stroke="#22D3EE"/><text x="125" y="230" text-anchor="middle" font-weight="700">develop</text><text x="125" y="252" text-anchor="middle" fill="#9AA7B4">non-production</text>
+    <rect x="30" y="360" width="190" height="70" rx="10" fill="#1F2A37" stroke="#22D3EE"/><text x="125" y="390" text-anchor="middle" font-weight="700">main</text><text x="125" y="412" text-anchor="middle" fill="#9AA7B4">production</text>
+
+    <rect x="330" y="40" width="330" height="230" rx="10" fill="#111823" stroke="#2B3745"/>
+    <text x="495" y="66" text-anchor="middle" font-weight="700">pull-request.yml</text>
+    <text x="495" y="94" text-anchor="middle" fill="#9AA7B4">discover affected roots</text>
+    <text x="495" y="118" text-anchor="middle" fill="#9AA7B4">fmt · validate · test · TFLint · Checkov · contract</text>
+    <text x="495" y="142" text-anchor="middle" fill="#9AA7B4">read-only plan per affected root</text>
+    <text x="495" y="166" text-anchor="middle" fill="#9AA7B4">cost (Infracost)</text>
+    <rect x="360" y="190" width="270" height="56" rx="8" fill="#0B0F14" stroke="#22D3EE"/><text x="495" y="214" text-anchor="middle" font-weight="700">reviewer (deterministic)</text><text x="495" y="234" text-anchor="middle" fill="#9AA7B4">verdict: PASS or REQUEST_CHANGES</text>
+
+    <rect x="330" y="330" width="330" height="100" rx="10" fill="#111823" stroke="#2B3745"/>
+    <text x="495" y="360" text-anchor="middle" font-weight="700">terraform.yml</text>
+    <text x="495" y="386" text-anchor="middle" fill="#9AA7B4">on push: init → plan → apply</text>
+    <text x="495" y="408" text-anchor="middle" fill="#9AA7B4">only the roots the push affected</text>
+
+    <rect x="770" y="40" width="400" height="100" rx="10" fill="#111823" stroke="#2B3745"/>
+    <text x="970" y="70" text-anchor="middle" font-weight="700">PR comment</text>
+    <text x="970" y="96" text-anchor="middle" fill="#9AA7B4">AI Summary (optional, text only)</text>
+    <text x="970" y="118" text-anchor="middle" fill="#9AA7B4">evidence: plan · cost · checks · findings</text>
+
+    <rect x="770" y="200" width="190" height="90" rx="10" fill="#1F2A37" stroke="#22D3EE"/><text x="865" y="232" text-anchor="middle" font-weight="700">AWS dev account</text><text x="865" y="254" text-anchor="middle" fill="#9AA7B4">AWS_*_DEVELOP</text><text x="865" y="274" text-anchor="middle" fill="#9AA7B4">state bucket</text>
+    <rect x="980" y="200" width="190" height="90" rx="10" fill="#1F2A37" stroke="#22D3EE"/><text x="1075" y="232" text-anchor="middle" font-weight="700">AWS prod account</text><text x="1075" y="254" text-anchor="middle" fill="#9AA7B4">AWS_*_MAIN</text><text x="1075" y="274" text-anchor="middle" fill="#9AA7B4">state bucket</text>
+
+    <rect x="770" y="350" width="400" height="80" rx="10" fill="#111823" stroke="#2B3745"/>
+    <text x="970" y="380" text-anchor="middle" font-weight="700">account guard</text>
+    <text x="970" y="404" text-anchor="middle" fill="#9AA7B4">keys' account must equal terraform.accounts</text>
+  </g>
+  <g stroke="#22D3EE" stroke-width="2" fill="none" marker-end="url(#a)">
+    <path d="M125 110 L125 200"/>
+    <path d="M125 270 L125 360"/>
+    <path d="M220 75 L330 120"/>
+    <path d="M220 235 L330 235"/>
+    <path d="M660 160 L770 100"/>
+    <path d="M220 395 L330 385"/>
+    <path d="M660 380 L770 245"/>
+    <path d="M660 395 L980 260"/>
+    <path d="M970 350 L970 295"/>
+  </g>
+</svg>

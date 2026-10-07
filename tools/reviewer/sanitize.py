@@ -30,12 +30,14 @@ _ASSIGN_RE = re.compile(r'(?i)(\b[\w.-]*(?:password|passwd|secret|token|api[_-]?
 
 
 def is_blocked(path: str) -> bool:
+    """True for file types that must never leave the repository (see BLOCKED_GLOBS)."""
     p = path.replace(os.sep, "/")
     base = os.path.basename(p)
     return any(fnmatch.fnmatch(p, g) or fnmatch.fnmatch(base, g) for g in BLOCKED_GLOBS)
 
 
 def sanitize_text(text: str) -> str:
+    """Redact credentials and secret-looking assignments in text. References such as var.x or module.x are kept."""
     for pat in _VALUE_PATTERNS:
         text = pat.sub(REDACTED, text)
 
