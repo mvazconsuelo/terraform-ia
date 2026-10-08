@@ -4,13 +4,13 @@
 
 <br>
 
-![Terraform](https://img.shields.io/badge/terraform-%E2%89%A5_1.10-0B0F14?logo=terraform&logoColor=22D3EE&labelColor=0B0F14)
+![Terraform](https://img.shields.io/badge/terraform-%E2%89%A5_1.11-0B0F14?logo=terraform&logoColor=22D3EE&labelColor=0B0F14)
 ![CI](https://img.shields.io/badge/ci-GitHub_Actions-0B0F14?logo=githubactions&logoColor=22D3EE&labelColor=0B0F14)
-![Modules](https://img.shields.io/badge/modules-terraform_test-0B0F14?logo=terraform&logoColor=22D3EE&labelColor=0B0F14)
+![Modules](https://img.shields.io/badge/modules-reusable_AWS-0B0F14?logo=terraform&logoColor=22D3EE&labelColor=0B0F14)
 ![Review](https://img.shields.io/badge/review-deterministic-0B0F14?logo=python&logoColor=22D3EE&labelColor=0B0F14)
 ![AI](https://img.shields.io/badge/AI_summary-optional-0B0F14?logo=googlegemini&logoColor=22D3EE&labelColor=0B0F14)
 
-**[Setup](docs/install.md)** · **[How it works](docs/architecture.md)** · **[Module standard](docs/module-standard.md)**
+**[Setup](docs/install.md)** · **[How it works](docs/architecture.md)** · **[What each file is](docs/files.md)** · **[The checks](docs/checks.md)** · **[Module standard](docs/module-standard.md)**
 
 </div>
 
@@ -31,12 +31,12 @@ No folder names are assumed: it works the same for `infra/web`, `terraform/netwo
 
 | | |
 | --- | --- |
-| **Affected-root discovery** | A module-call graph built from local `source` paths. Edited roots, edited modules (transitively) and edited shared files are mapped to roots. Docs and module tests trigger nothing. |
+| **Affected-root discovery** | A module-call graph built from local `source` paths. Edited roots, edited modules (transitively) and edited shared files are mapped to roots. Docs trigger nothing. |
 | **Branch → account** | `develop` and `main` use different AWS keys. Before `init`, the pipeline compares the keys' account with `terraform.accounts` and stops on a mismatch. |
 | **Deterministic verdict** | `REQUEST_CHANGES` on any HIGH or CRITICAL finding or failed check; otherwise `PASS`. The AI never takes part. |
 | **Reviewer** | Rules (module boundaries, mandatory tags, plan and cost against the standards) on top of `terraform`, TFLint, Checkov and Infracost. |
 | **AI summary** | One text, schema-validated and grounded: every resource, file and price it mentions is checked against the evidence. Off by default; a failing model never changes the result. |
-| **Modules** | Reusable AWS modules, each with a README and a `terraform test` suite that needs no credentials. |
+| **Modules** | Reusable AWS modules, each with a README and typed, validated inputs. |
 
 ## Stack
 
@@ -51,12 +51,12 @@ To run the pipeline on your own repository: [Setup](docs/install.md).
 <summary><b>Repository layout</b></summary>
 
 ```text
-modules/              Reusable AWS modules (README + terraform test each)
+modules/              Reusable AWS modules (README each)
 infra-example/        Example roots: dev/web-demo and prod/web-demo
-tools/reviewer/       The reviewer: rules.yaml · checks.py · engine.py · repo.py · plan.py · cost.py · report.py · ai/
+tools/reviewer/       The reviewer: ci/ (one file per workflow step) · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
 .github/workflows/    pull-request.yml (checks, plans, comment) · terraform.yml (plan / apply)
 common.yaml           project, state settings, AI switch, accounts per branch, optional terraform: block
-docs/                 Setup, architecture, module standard
+docs/                 Setup, architecture, file map, the checks, module standard
 ```
 
 </details>

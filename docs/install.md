@@ -4,7 +4,7 @@
 
 ## Requirements
 
-A GitHub repository, one or two AWS accounts, Terraform ≥ 1.10 (S3 native state lock, no DynamoDB), the AWS CLI, `gh`, and Python 3.12 with PyYAML.
+A GitHub repository, one or two AWS accounts, Terraform ≥ 1.11 (S3 native state lock, no DynamoDB; the repo is developed on 1.16), the AWS CLI, `gh`, and Python 3.12 with PyYAML.
 
 ## 1. Branches
 

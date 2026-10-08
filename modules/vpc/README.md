@@ -51,7 +51,3 @@ VPC, internet gateway, subnets, route tables, EIPs, NAT gateways, VPC endpoint �
 ## Cost
 
 NAT gateways dominate (hourly + per GB): `none` = $0, `single` = 1×, `per_az` = N×. Prefer `none` plus VPC endpoints for AWS-only traffic, `single` for non-prod.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (uses `mock_provider`, no credentials).

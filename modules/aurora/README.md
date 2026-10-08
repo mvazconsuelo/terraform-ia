@@ -89,7 +89,3 @@ A precondition rejects a version that does not match the chosen engine.
 ## Cost
 
 Instances (class × count) + storage + backups; `aurora-iopt1` removes per-I/O charges for a higher instance/storage price (worth it when I/O exceeds roughly a quarter of spend). Serverless v2 bills ACU-hours; minimum capacity is always billed unless it is 0.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (mock provider, no credentials).

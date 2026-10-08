@@ -1,0 +1,254 @@
+# THE CATALOG OF CHECKS: the only source of truth for what the repository enforces.
+# One entry per rule. `id` is FAMILY-NUMBER; `check` is the name of the function that implements it:
+#     MODULE-*, TAGS-*, ROOT-*, COST-001 ... rules/code_rules.py   (they read the .tf files)
+#     PLAN-001, COST-002 ................... rules/plan_rules.py   (they read the terraform plan and the Infracost estimate)
+# The other keys of a rule are the parameters of its check.
+#
+# Deliberately NOT here, because an external tool is the authority for it (do not duplicate it):
+#   terraform fmt / validate ............... syntax, formatting, validation
+#   TFLint (.tflint.hcl) ................... lint: required_version / required_providers, documented variables and outputs
+#   Checkov ................................ generic security: open ingress, hard-coded secrets, public endpoints, encryption
+#   Infracost .............................. prices (this repo only reads its numbers)
+# The rules below are what those tools cannot know: module boundaries, naming, mandatory tags, root layout,
+# and the correlation of the terraform plan and the cost estimate with the repository's own standards.
+rules:
+# ---- MODULE: how modules are built and what must not be built outside one (rules/code_rules.py)
+- id: MODULE-001
+  category: MODULE_STANDARD
+  severity: HIGH
+  check: resource_declared_outside_its_module
+  title: Reusable capability implemented outside its module
+  explanation: >-
+    This resource type is a reusable capability with a module in the modules folder. Root configurations
+    (any folder that is not a module) must consume the module instead of declaring the resource directly.
+  recommendation: Consume (or create) the module listed in `module` instead of declaring the resource.
+  capabilities:
+    aws_lambda_function: modules/lambda
+    aws_sqs_queue: modules/sqs
+    aws_s3_bucket: modules/s3
+    aws_vpc: modules/vpc
+    aws_subnet: modules/vpc
+    aws_nat_gateway: modules/vpc
+    aws_security_group: modules/security-group
+    aws_iam_role: modules/iam
+    aws_iam_instance_profile: modules/iam
+    aws_eks_cluster: modules/eks/cluster
+    aws_eks_access_entry: modules/eks/cluster
+    aws_eks_access_policy_association: modules/eks/cluster
+    aws_iam_openid_connect_provider: modules/eks/cluster
+    aws_eks_node_group: modules/eks/node-group
+    aws_eks_addon: modules/eks/addons
+    aws_rds_cluster: modules/aurora
+    aws_rds_cluster_instance: modules/aurora
+    aws_rds_cluster_parameter_group: modules/aurora
+    aws_db_parameter_group: modules/aurora
+    aws_db_instance: modules/aurora
+    aws_lb: modules/elb/nlb or modules/elb/alb
+    aws_lb_target_group: modules/elb/nlb or modules/elb/alb
+    aws_lb_listener: modules/elb/nlb or modules/elb/alb
+    aws_lb_listener_rule: modules/elb/alb
+    aws_apigatewayv2_api: modules/api-gateway
+    aws_apigatewayv2_vpc_link: modules/api-gateway
+    aws_api_gateway_rest_api: modules/api-gateway
+    aws_cloudwatch_event_rule: modules/eventbridge
+    aws_cloudwatch_event_bus: modules/eventbridge
+    aws_launch_template: modules/ec2/launch-template
+    aws_autoscaling_group: modules/ec2/asg
+    aws_instance: modules/ec2/instances
+    aws_ebs_volume: modules/ec2/instances
+- id: MODULE-002
+  category: MODULE_STANDARD
+  severity: MEDIUM
+  check: module_missing_required_files
+  title: Module is missing required contract files
+  explanation: Every module must ship versions.tf, variables.tf, outputs.tf, and README.md.
+  recommendation: Add the missing files; see docs/module-standard.md.
+  required:
+  - versions.tf
+  - variables.tf
+  - outputs.tf
+  - README.md
+- id: MODULE-003
+  category: MODULE_STANDARD
+  severity: MEDIUM
+  check: resource_has_arbitrary_name
+  title: Resource does not follow the `this` naming convention
+  explanation: >-
+    The primary resource of a type inside a module is named `this`; additional resources use role names (`public`,
+    `private`, `nat`). Arbitrary, type-echoing or environment-specific names (`my_bucket`, `prod_bucket`, `bucket123`,
+    `bucket`) leak detail and break refactors.
+  recommendation: Rename to `this` or a role-based name (use a `moved` block to avoid replacement).
+- id: MODULE-004
+  category: MODULE_STANDARD
+  severity: MEDIUM
+  check: variable_typed_any
+  title: Variable uses `type = any`
+  explanation: Public module inputs must be strongly typed so misuse fails at plan time.
+  recommendation: Replace `any` with an explicit object/map/list type and add validation.
+- id: MODULE-005
+  category: MODULE_STANDARD
+  severity: MEDIUM
+  check: component_outside_domain_folder
+  title: Domain component placed outside its domain directory
+  explanation: >-
+    Multi-component domains live in modules/<domain>/<component> (modules/eks/*, modules/ec2/*, modules/elb/*).
+    Top-level modules/eks-*, modules/ec2-*, modules/elb-*, modules/nlb or modules/alb are not allowed.
+  recommendation: Move the module to modules/<domain>/<component>.
+  forbidden_prefixes:
+  - eks-
+  - ec2-
+  - elb-
+  - nlb/
+  - alb/
+- id: MODULE-006
+  category: NETWORKING
+  severity: HIGH
+  check: eks_autoscaling_group_declared_directly
+  title: Auto Scaling Group managed directly for EKS
+  explanation: >-
+    EKS managed node groups own their Auto Scaling Groups. Declaring aws_autoscaling_group in the EKS module domain or in a root configuration bypasses
+    modules/eks/node-group and fights the EKS control plane.
+  recommendation: Express capacity through modules/eks/node-group `groups`.
+  module_paths:
+  - eks/
+# ---- TAGS: every taggable resource carries the mandatory tags (rules/code_rules.py)
+- id: TAGS-001
+  category: GOVERNANCE
+  severity: HIGH
+  check: resource_missing_mandatory_tags
+  title: Taggable resource does not receive mandatory tags
+  explanation: >-
+    Every taggable AWS resource managed by a module must receive the mandatory mandatory cost-allocation tags. Untagged
+    resources cannot be attributed in cost reports.
+  recommendation: Add `tags = merge(local.tags, { Name = ... })` using the module's mandatory tag local.
+  mandatory_tags:
+  - Environment
+  - Owner
+  - CostCenter
+  - Project
+  - ManagedBy
+  taggable_types:
+  - aws_vpc
+  - aws_subnet
+  - aws_internet_gateway
+  - aws_route_table
+  - aws_eip
+  - aws_nat_gateway
+  - aws_vpc_endpoint
+  - aws_security_group
+  - aws_s3_bucket
+  - aws_eks_cluster
+  - aws_eks_node_group
+  - aws_eks_addon
+  - aws_eks_access_entry
+  - aws_iam_openid_connect_provider
+  - aws_db_instance
+  - aws_db_subnet_group
+  - aws_lb
+  - aws_lb_target_group
+  - aws_lambda_function
+  - aws_sqs_queue
+  - aws_kms_key
+  - aws_iam_role
+  - aws_cloudwatch_log_group
+  - aws_apigatewayv2_api
+  - aws_apigatewayv2_vpc_link
+  - aws_apigatewayv2_stage
+  - aws_iam_instance_profile
+  - aws_launch_template
+  - aws_instance
+  - aws_ebs_volume
+  - aws_cloudwatch_event_bus
+  - aws_cloudwatch_event_rule
+  - aws_rds_cluster
+  - aws_rds_cluster_instance
+  - aws_rds_cluster_parameter_group
+  - aws_db_parameter_group
+  - aws_lb_listener
+  - aws_lb_listener_rule
+- id: TAGS-002
+  category: GOVERNANCE
+  severity: MEDIUM
+  check: module_missing_tag_variables
+  title: Module does not expose the mandatory-tag input contract
+  explanation: >-
+    Modules creating taggable resources must accept `tags` (an object with environment, owner, cost_center and project)
+    and `extra_tags` (a free-form map).
+  recommendation: Add the `tags` and `extra_tags` variables as defined in the module standard.
+- id: TAGS-003
+  category: GOVERNANCE
+  severity: HIGH
+  check: autoscaling_group_does_not_propagate_tags
+  title: Auto Scaling Group does not propagate mandatory tags
+  explanation: >-
+    Auto Scaling Groups have no `tags` map; tags are `tag` blocks with propagate_at_launch. Without them, instances
+    and volumes launched by the group are untagged and invisible in cost reports.
+  recommendation: Add a `dynamic "tag"` block over the module's merged tags with propagate_at_launch = true.
+  mandatory_tags:
+  - Environment
+  - Owner
+  - CostCenter
+  - Project
+  - ManagedBy
+# ---- ROOT: the layout of a family of root configurations; opt-in with terraform.conventions.layout (rules/code_rules.py)
+- id: ROOT-001
+  category: MODULE_STANDARD
+  severity: HIGH
+  check: root_breaks_layout
+  title: Root configuration does not follow its layout
+  explanation: >-
+    When `terraform.conventions.layout` in common.yaml names a family of root configurations (for example
+    environments/*), each one holds only the listed files plus its templates, and its main.tf declares no provider,
+    required_providers or backend: the region comes from AWS_REGION, versions from the modules and the backend is
+    generated by the pipeline. Without that setting this rule does nothing.
+  recommendation: >-
+    Keep only the listed files and templates in the configuration and remove provider, version and backend settings.
+- id: ROOT-002
+  category: MODULE_STANDARD
+  severity: HIGH
+  check: root_files_differ
+  title: A root configuration's files differ from its siblings
+  explanation: >-
+    For a layout that lists `identical` files, the infrastructure is the same in every configuration of the family and
+    only the data differs. A main.tf or template that diverges hides untested behaviour in the more critical one.
+  recommendation: >-
+    Make the listed files identical across the family and move the difference into the data file.
+# ---- COST: choices that cost more than needed (COST-001 reads the code, COST-002 reads the Infracost estimate)
+- id: COST-001
+  category: NETWORKING
+  severity: MEDIUM
+  check: nat_gateway_per_zone_in_unprotected_root
+  title: NAT gateway per AZ in a non-protected configuration
+  explanation: nat_gateway_mode = "per_az" triples NAT cost; configurations not listed under `terraform.protected` in common.yaml should use `single` or `none`.
+  recommendation: Use `single` outside protected configurations unless availability testing is the goal.
+- id: COST-002
+  category: COST
+  severity: MEDIUM
+  check: plan_cost_increase_above_threshold
+  title: Infracost reports a large monthly increase
+  explanation: >-
+    The estimated monthly cost grows by more than the threshold. The figure comes from Infracost, never from the
+    model.
+  recommendation: Check which resources drive the increase (see the cost drivers) and confirm the sizing is intended.
+  monthly_delta_usd: 200
+# ---- PLAN: what terraform will do to the infrastructure (rules/plan_rules.py)
+- id: PLAN-001
+  category: LIFECYCLE
+  severity: CRITICAL
+  check: plan_destroys_stateful_resource
+  title: Plan destroys or replaces a stateful resource
+  explanation: >-
+    Destroying or replacing a stateful resource (database, bucket, key, cluster) loses data or causes downtime.
+    It is CRITICAL in a configuration listed under `terraform.protected` in common.yaml and for any plain destroy; a replacement elsewhere is HIGH.
+  recommendation: >-
+    Find the attribute that forces replacement (see the plan), revert it or plan a migration (snapshot, blue/green),
+    and confirm deletion protection and backups before applying.
+  stateful_types:
+  - aws_rds_cluster
+  - aws_rds_cluster_instance
+  - aws_db_instance
+  - aws_db_subnet_group
+  - aws_s3_bucket
+  - aws_kms_key
+  - aws_eks_cluster
+  - aws_secretsmanager_secret

@@ -4,7 +4,7 @@ variable "cluster_name" {
 }
 
 variable "tags" {
-  description = "Mandatory tags (environment, owner, cost_center, project) applied to every taggable resource. See the module standard in the root README.md."
+  description = "Mandatory tags (environment, owner, cost_center, project) applied to every taggable resource. See docs/module-standard.md."
   type = object({
     environment = string
     owner       = string

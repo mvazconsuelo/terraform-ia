@@ -45,7 +45,3 @@ Changing `name`, type or the subnets' AZs replaces the ALB (new DNS name, downti
 ## Cost
 
 Hourly + LCU (connections, bytes, rule evaluations): many rules raise LCUs. An internal ALB in private subnets avoids public exposure but not the hourly charge.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (mock provider, no credentials).

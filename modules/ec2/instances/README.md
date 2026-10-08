@@ -43,7 +43,3 @@ Instance keys are identities: renaming a key replaces the instance. Changing `su
 ## Cost
 
 Instance type x hours + EBS (root and data volumes) + data transfer.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (mock provider, no credentials).
