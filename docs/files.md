@@ -42,7 +42,8 @@ lib/git_diff → what changed  ─►  terraform/ → what it affects  ─►  r
 | `review/` | The review itself: the verdict and the PR comment. |
 | `infracost/`, `aws/`, `versions/` | Reading the Infracost data; checking which AWS account the keys belong to; looking up newer Terraform and provider releases. |
 | `ai/` | The optional AI summary. |
-| `lib/` | Helpers every other folder can use, none of them a workflow step: `git_diff.py` (the files a PR changes: `git diff base...HEAD`, committed changes only), `github_actions.py` (writes `$GITHUB_OUTPUT` and `$GITHUB_STEP_SUMMARY`, reports errors, tells the mode and the branch) `workflow_jobs.py` (the jobs of the current run with a link to each one, for the comment) and `redact_secrets.py` (hides credentials in the text and values the AI receives). |
+| `chat/` | A terminal chat with Gemini that answers questions about the project from its documentation (`terminal_chat.py`) and, with `/reviews`, from the review comments of recent pull requests: plans, costs, versions, findings by date (`pr_reviews.py`, read with `gh`). `format_terminal.py` renders the answers (install `rich` for tables). Read-only: no files, commands or AWS. Run it by hand with your own `GEMINI_API_KEY`: `PYTHONPATH=tools python -m reviewer.chat.terminal_chat`. |
+| `lib/` | Helpers every other folder can use, none of them a workflow step: `git_diff.py` (the files a PR changes: `git diff base...HEAD`, committed changes only), `github_actions.py` (writes `$GITHUB_OUTPUT` and `$GITHUB_STEP_SUMMARY`, reports errors, tells the mode and the branch) `workflow_jobs.py` (the jobs of the current run with a link to each one, so the comment can link to their logs) and `redact_secrets.py` (hides credentials in the text and values the AI receives). |
 
 ### `terraform/`: understanding the Terraform code and the plan
 
@@ -71,7 +72,7 @@ The list of rules is in [The checks](checks.md).
 | --- | --- |
 | `finding.py` | The shape of a finding (severity, evidence, file, line, rule...) that every rule returns, and the severity order. It is the form a rule fills in to report a problem; it does not say how modules must be built (that is the [module standard](module-standard.md)). |
 | `run_review.py` | One review, in order: affected roots, findings, the deterministic verdict and the optional AI summary. |
-| `render_pr_comment.py` | Builds the text of the PR comment (Markdown) from a review result: nine sections, from the AI summary to the links to the workflow jobs. |
+| `render_pr_comment.py` | Builds the text of the PR comment (Markdown) from a review result: eight sections, from the AI summary to the decision. |
 
 ### `infracost/`, `aws/` and `versions/`: the cost data, the AWS account and the releases
 

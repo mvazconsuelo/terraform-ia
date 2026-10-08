@@ -57,6 +57,7 @@ aws s3api put-public-access-block --bucket $B --public-access-block-configuratio
 | `INFRACOST_API_KEY` | no | Cost section (`infracost auth login` for a free key) |
 | `GEMINI_API_KEY` | no | AI summary (Google AI Studio) |
 | `GEMINI_MODEL` | no | Overrides the default model; leave unset otherwise |
+| `GEMINI_FALLBACK_MODEL` | no | A second model, used only when the main one is overloaded (503) or out of quota (429); quotas are per model |
 
 ```bash
 gh secret set AWS_ACCESS_KEY_ID_DEVELOP

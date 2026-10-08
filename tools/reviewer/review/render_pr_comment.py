@@ -1,6 +1,6 @@
 """Builds the text of the PR comment (Markdown) from the result of a review.
 
-The comment has nine sections, in this order:
+The comment has eight sections, in this order:
 
   1. AI Gemini summary (optional)  the only text written by a model; with the AI off or failing, the rest is identical;
   2. Affected configurations       which Terraform root configurations the PR touches, and why;
@@ -9,15 +9,16 @@ The comment has nine sections, in this order:
   5. Cost                          the Infracost estimate;
   6. Versions                      the Terraform and provider versions in use, and whether newer ones exist (information only);
   7. Findings                      what the rules found, with the rules evaluated;
-  8. Decision                      the verdict, and the reasons when it blocks;
-  9. Workflow jobs                 a link to the log of every job of the run.
+  8. Decision                      the verdict, and the reasons when it blocks.
+
+The name of every check, and the plan of every root, link to the log of the job that ran it.
 
 Every section except the first is produced by code from deterministic inputs. Each `_<name>_section` function below
 returns the lines of one section; `render_pr_comment` joins them.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # A hidden marker on the first line: the workflow finds its own comment by it and edits it instead of adding a new one.
 COMMENT_MARKER = "<!-- terra-review -->"
@@ -65,6 +66,19 @@ def _format_forcing_attributes(paths: List[Any]) -> str:
     """The attributes that force a replacement, e.g. `kms_key_id, engine_version`."""
     names = [".".join(str(part) for part in path) if isinstance(path, list) else str(path) for path in paths]
     return ", ".join(names)
+
+
+def _job_url(jobs: List[Dict[str, Any]], name: str) -> Optional[str]:
+    """The link to the log of the job called `name`, or None. A check name may carry a suffix (`Checkov (2 findings...)`)."""
+    for job in jobs:
+        if job["name"] == name or name.startswith(job["name"] + " ("):
+            return str(job["url"])
+    return None
+
+
+def _link(text: str, url: Optional[str]) -> str:
+    """`text` as a Markdown link when there is a url, plain otherwise."""
+    return "[{}]({})".format(text, url) if url else text
 
 
 def _without_trailing_blank(lines: List[str]) -> List[str]:
@@ -126,8 +140,8 @@ def _affected_configurations_section(affected: List[Dict[str, Any]], changed: Li
 # ----------------------------------------------------------------------------------------------------------------
 # 3. Checks
 # ----------------------------------------------------------------------------------------------------------------
-def _checks_section(checks: Dict[str, str]) -> List[str]:
-    """The table of CI job results and a one-line count: how many passed, had findings, or were skipped."""
+def _checks_section(checks: Dict[str, str], jobs: List[Dict[str, Any]]) -> List[str]:
+    """The table of CI job results (each name links to its job) and a one-line count: how many passed, had findings, or were skipped."""
     lines = ["## Checks", ""]
     if not checks:
         return lines + ["_No check results were provided._"]
@@ -135,7 +149,7 @@ def _checks_section(checks: Dict[str, str]) -> List[str]:
     rows = ["| Check | Result |", "|---|---|"]
     for name, status in checks.items():
         label = CHECK_RESULT_LABEL.get(status, "❔ " + str(status).upper())
-        rows.append("| {} | {} |".format(name[:1].upper() + name[1:], label))
+        rows.append("| {} | {} |".format(_link(name[:1].upper() + name[1:], _job_url(jobs, name)), label))
 
     ran = [status for status in checks.values() if status != "skipped"]
     passed = sum(1 for status in ran if status == "success")
@@ -170,7 +184,7 @@ def _describe_replacement(change: Dict[str, Any]) -> str:
     return "-/+ {}{}".format(change["address"], forced_by)
 
 
-def _terraform_plan_section(plans: Dict[str, dict]) -> List[str]:
+def _terraform_plan_section(plans: Dict[str, dict], jobs: List[Dict[str, Any]]) -> List[str]:
     """For each root: the counts, and the resources to add, change, destroy and replace (with what forces the replacement)."""
     lines = ["## Terraform plan", ""]
     if not plans:
@@ -186,7 +200,8 @@ def _terraform_plan_section(plans: Dict[str, dict]) -> List[str]:
         counts = "{} to add · {} to change · {} to destroy".format(len(to_add), len(to_change), len(to_destroy))
         if to_replace:
             counts += " · {} to replace".format(len(to_replace))
-        lines += ["**Plan:** `{}`".format(counts), ""]
+        job_url = _job_url(jobs, "plan {0} / {0}".format(root))
+        lines += ["**Plan:** `{}`".format(counts) + ("  ·  {}".format(_link("job log", job_url)) if job_url else ""), ""]
 
         groups = (
             ("Resources to add", ["+ " + address for address in to_add]),
@@ -354,55 +369,49 @@ def _decision_section(review: Dict[str, Any]) -> List[str]:
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# 9. Workflow jobs
-# ----------------------------------------------------------------------------------------------------------------
-def _workflow_jobs_section(jobs: List[Dict[str, Any]]) -> List[str]:
-    """A link to the log of every job of this run, with its result (empty when GitHub could not be asked)."""
-    if not jobs:
-        return []
-    rows = ["| Job | Result |", "|---|---|"]
-    for job in jobs:
-        rows.append("| [{}]({}) | {} |".format(job["name"], job["url"], CHECK_RESULT_LABEL.get(job["result"], "🔄 " + str(job["result"]))))
-    return ["## Workflow jobs", ""] + rows
-
-
-# ----------------------------------------------------------------------------------------------------------------
 # The whole comment
 # ----------------------------------------------------------------------------------------------------------------
-def _describe_environment(target: Any) -> str:
-    """The environment this change lands on (a line of the header); says so when the target branch is unknown (a local run)."""
-    if not target:
-        return "**Environment:** unknown (no target branch given)  "
-    if target.get("account"):
-        account = " · AWS account `{}`".format(target["account"])
+def _header_section(review: Dict[str, Any], jobs: List[Dict[str, Any]]) -> List[str]:
+    """The top of the comment: a coloured box with the decision and the risk, then where the change lands and the run.
+
+    The box uses GitHub's alert syntax, so it is green for PASS, red for REQUEST_CHANGES at HIGH or CRITICAL risk, and yellow for
+    REQUEST_CHANGES at a lower risk."""
+    decision, risk = review["decision"], review["risk"]
+    if decision == "PASS":
+        kind, verdict = "TIP", "✅ **PASS** — no blocking issues"
     else:
-        account = " · AWS account not configured in `common.yaml`"
-    return "**Environment:** `{}` ({}){}  ".format(target["branch"], target["environment"], account)
+        kind = "CAUTION" if risk in ("CRITICAL", "HIGH") else "WARNING"
+        verdict = "❌ **REQUEST_CHANGES** — blocking issues found"
+    lines = ["> [!{}]".format(kind), "> {}  ".format(verdict), "> Risk: {} **{}**".format(SEVERITY_ICON.get(risk, ""), risk), ""]
+
+    target = review.get("target")
+    if not target:
+        where, account = "unknown (no target branch given)", "—"
+    else:
+        where = "`{}` ({})".format(target["branch"], target["environment"])
+        account = "`{}`".format(target["account"]) if target.get("account") else "not configured in `common.yaml`"
+    run = "[open]({})".format(jobs[0]["url"].rsplit("/job/", 1)[0]) if jobs else "—"
+    lines += ["| Environment | AWS account | Workflow run |", "|---|---|---|", "| {} | {} | {} |".format(where, account, run), ""]
+    return lines + ["*This reviewer cannot approve, merge, or apply infrastructure.*"]
 
 
 def render_pr_comment(review: Dict[str, Any]) -> str:
-    """Build the whole PR comment from a review result: the header, then the nine sections (the last one only when GitHub listed the jobs)."""
+    """Build the whole PR comment from a review result: the header, then the eight sections."""
     plans, costs, findings = review.get("plans", {}), review.get("costs", {}), review["findings"]
+    jobs = review.get("jobs", [])
 
     sections = [
         _ai_summary_section(review),
         _affected_configurations_section(review.get("affected", []), review.get("changed_files", [])),
-        _checks_section(review.get("checks", {})),
-        _terraform_plan_section(plans),
+        _checks_section(review.get("checks", {}), jobs),
+        _terraform_plan_section(plans, jobs),
         _cost_section(costs),
         _versions_section(review.get("versions", [])),
         _findings_section(findings, review.get("rules_evaluated")),
         _decision_section(review),
-        _workflow_jobs_section(review.get("jobs", [])),
     ]
 
-    lines = [
-        COMMENT_MARKER, "# Infrastructure Review", "",
-        "**Risk:** {} · **Decision:** {}  ".format(review["risk"], review["decision"]),
-        _describe_environment(review.get("target")),
-        "*This reviewer cannot approve, merge, or apply infrastructure.*", "", "---", "",
-    ]
-    sections = [section for section in sections if section]      # a section with nothing to show is left out
+    lines = [COMMENT_MARKER, "# Infrastructure Review", ""] + _header_section(review, jobs) + ["", "---", ""]
     for index, section in enumerate(sections):
         lines += section
         if index < len(sections) - 1:

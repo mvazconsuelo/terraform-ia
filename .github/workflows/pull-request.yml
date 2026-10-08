@@ -79,7 +79,7 @@ jobs:
         run: PYTHONPATH=tools python -m reviewer.ci.terraform_validate
 
   tflint:
-    name: TFLint
+    name: tflint
     if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
@@ -147,7 +147,7 @@ jobs:
 
   review:
     name: PR comment
-    needs: [discover, fmt, validate, tflint, checkov, contract, plan]
+    needs: [discover, fmt, python, validate, tflint, checkov, contract, plan]
     if: always()
     runs-on: ubuntu-latest
     permissions:
@@ -173,11 +173,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}      # Settings > Secrets and variables > Actions > Secrets
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}              # optional; empty falls back to the default
+          GEMINI_FALLBACK_MODEL: ${{ secrets.GEMINI_FALLBACK_MODEL }}   # optional; used only if the main model is overloaded or out of quota
           BASE: origin/${{ github.base_ref }}
           # Author-written text goes through the environment, never interpolated into the script.
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
           R_FMT: ${{ needs.fmt.result }}
+          R_PYTHON: ${{ needs.python.result }}
           R_VALIDATE: ${{ needs.validate.result }}
           R_TFLINT: ${{ needs.tflint.result }}
           R_CHECKOV: ${{ needs.checkov.result }}

@@ -52,9 +52,9 @@ One state per root: key `<root path>/terraform.tfstate` in the bucket `<project>
 
 `tools/reviewer`: findings from contract checks on the code (`rules/rules.yaml` + `rules/code_rules.py`) and checks on the plan and cost, then:
 
-- **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed, else `PASS`. Risk is the highest severity found. A skipped check is not a failure.
+- **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed (fmt, ruff and mypy, validate, TFLint, the repository contract), else `PASS`. Checkov only warns for now. Risk is the highest severity found. A skipped check is not a failure.
 - **`PLAN-001`:** a plan that destroys or replaces a stateful resource is CRITICAL in a protected root (every root in a PR into production) and HIGH elsewhere.
-- **Comment:** one per PR, updated in place. The header shows the risk, the decision and the environment; then nine sections: AI Gemini summary (optional), affected configurations, checks, Terraform plan (replacements included), cost, versions, findings, decision and a table with a link to every workflow job of the run.
+- **Comment:** one per PR, updated in place. The header is a coloured box (green for PASS, red or yellow for REQUEST_CHANGES) with the decision and the risk, then a table with the environment, the AWS account and the link to the run; then eight sections: AI Gemini summary (optional), affected configurations, checks, Terraform plan (replacements included), cost, versions, findings, decision. Each check name and each root's plan link to the log of the job that ran it.
 
 - **Versions:** the Terraform and provider versions the plan used, against the latest releases, with a link to what changed. It only informs; it never changes a file and never affects the decision. If the registries do not answer, the section says so.
 

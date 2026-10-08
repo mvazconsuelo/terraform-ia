@@ -46,6 +46,7 @@ you help its owner extend it without breaking its conventions.
 | `tools/reviewer/rules/` | `rules.yaml` (the catalog, the single source of truth), `registry.py`, `code_rules.py`, `plan_rules.py`. |
 | `tools/reviewer/review/` | `run_review.py` (checks, verdict, AI), `render_pr_comment.py` (the comment), `finding.py`. |
 | `tools/reviewer/versions/` | Looks up newer Terraform and provider releases (information only, never changes a file or the verdict). |
+| `tools/reviewer/chat/` | `terminal_chat.py`: a read-only terminal chat with Gemini that answers from the docs. |
 | `tools/reviewer/ai/` | The optional AI summary: `summary.py`, `client.py`, `grounding.py`, `prompt.md`, `schema.json`. |
 | `docs/` | `files.md` (every file and folder), `checks.md` (every rule), `module-standard.md`, `architecture.md`, `install.md`. |
 

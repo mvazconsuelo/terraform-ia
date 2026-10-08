@@ -42,6 +42,7 @@ lib/git_diff → qué cambió  ─►  terraform/ → qué afecta  ─►  rules
 | `review/` | La revisión en sí: el veredicto y el comentario del PR. |
 | `infracost/`, `aws/`, `versions/` | Leer los datos de Infracost; comprobar a qué cuenta AWS pertenecen las llaves; buscar versiones nuevas de Terraform y de los providers. |
 | `ai/` | El resumen opcional de IA. |
+| `chat/` | Un chat en la terminal con Gemini que responde preguntas sobre el proyecto a partir de su documentación (`terminal_chat.py`) y, con `/reviews`, a partir de los comentarios de review de los PR recientes: planes, costos, versiones y hallazgos por fecha (`pr_reviews.py`, se leen con `gh`). `format_terminal.py` da formato a las respuestas (instala `rich` para ver tablas). Solo lectura: sin archivos, comandos ni AWS. Se ejecuta a mano con tu propia `GEMINI_API_KEY`: `PYTHONPATH=tools python -m reviewer.chat.terminal_chat`. |
 | `lib/` | Utilidades que puede usar cualquier carpeta y que no son pasos de workflow: `git_diff.py` (los archivos que cambia un PR: `git diff base...HEAD`, solo cambios confirmados en commits), `github_actions.py` (escribe `$GITHUB_OUTPUT` y `$GITHUB_STEP_SUMMARY`, reporta errores, indica el modo y la rama) `workflow_jobs.py` (los jobs de la ejecución actual con un enlace a cada uno, para el comentario) y `redact_secrets.py` (oculta credenciales en el texto y los valores que recibe la IA). |
 
 ### `terraform/`: entender el código de Terraform y el plan
@@ -71,7 +72,7 @@ La lista de reglas está en [Los checks](checks.md).
 | --- | --- |
 | `finding.py` | La forma de un hallazgo (severidad, evidencia, archivo, línea, regla...) que devuelve cada regla, y el orden de severidades. Es el formulario que una regla llena para reportar un problema; no dice cómo deben construirse los módulos (eso es el [estándar de módulos](module-standard.md)). |
 | `run_review.py` | Una revisión, en orden: raíces afectadas, hallazgos, el veredicto determinista y el resumen opcional de IA. |
-| `render_pr_comment.py` | Construye el texto del comentario del PR (Markdown) a partir del resultado de una revisión: nueve secciones, desde el resumen de IA hasta los enlaces a los jobs del workflow. |
+| `render_pr_comment.py` | Construye el texto del comentario del PR (Markdown) a partir del resultado de una revisión: ocho secciones, desde el resumen de IA hasta la decisión. |
 
 ### `infracost/`, `aws/` y `versions/`: los datos de costo, la cuenta AWS y las versiones
 

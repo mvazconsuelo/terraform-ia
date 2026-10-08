@@ -25,6 +25,7 @@ def _check_results(env: Dict[str, str]) -> Dict[str, str]:
     of findings, never as a clean pass."""
     results = {
         "terraform fmt": env.get("R_FMT", ""),
+        "python (ruff, mypy)": env.get("R_PYTHON", ""),
         "terraform validate": env.get("R_VALIDATE", ""),
         "TFLint": env.get("R_TFLINT", ""),
         "repository contract": env.get("R_CONTRACT", ""),

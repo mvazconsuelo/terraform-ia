@@ -52,9 +52,9 @@ Un state por raíz: clave `<ruta de la raíz>/terraform.tfstate` en el bucket `<
 
 `tools/reviewer`: hallazgos de los checks del contrato sobre el código (`rules/rules.yaml` + `rules/code_rules.py`) y de los checks sobre el plan y el costo; luego:
 
-- **Veredicto:** `REQUEST_CHANGES` cuando un hallazgo confirmado es HIGH o CRITICAL o falló un check externo; si no, `PASS`. El riesgo es la mayor severidad encontrada. Un check omitido no es una falla.
+- **Veredicto:** `REQUEST_CHANGES` cuando un hallazgo confirmado es HIGH o CRITICAL o falló un check externo (fmt, ruff y mypy, validate, TFLint, el contrato del repositorio); si no, `PASS`. Por ahora Checkov solo avisa. El riesgo es la mayor severidad encontrada. Un check omitido no es una falla.
 - **`PLAN-001`:** un plan que destruye o reemplaza un recurso con estado es CRITICAL en una raíz protegida (todas las raíces en un PR hacia producción) y HIGH en el resto.
-- **Comentario:** uno por PR, actualizado en el lugar. El encabezado muestra el riesgo, la decisión y el ambiente; luego nueve secciones: resumen de IA con Gemini (opcional), configuraciones afectadas, checks, plan de Terraform (con los reemplazos), costo, versiones, hallazgos, decisión y una tabla con un enlace a cada job del workflow de la ejecución.
+- **Comentario:** uno por PR, actualizado en el lugar. El encabezado es un recuadro de color (verde para PASS, rojo o amarillo para REQUEST_CHANGES) con la decisión y el riesgo, y una tabla con el ambiente, la cuenta AWS y el enlace a la ejecución; luego ocho secciones: resumen de IA con Gemini (opcional), configuraciones afectadas, checks, plan de Terraform (con los reemplazos), costo, versiones, hallazgos y decisión. El nombre de cada check y el plan de cada raíz enlazan al log del job que los ejecutó.
 
 - **Versiones:** las versiones de Terraform y de providers que usó el plan, frente a las últimas publicadas, con un enlace a lo que cambió. Solo informa; nunca cambia un archivo ni afecta la decisión. Si los registros no responden, la sección lo indica.
 
