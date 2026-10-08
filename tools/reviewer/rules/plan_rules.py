@@ -13,7 +13,6 @@ from typing import Dict, List
 from ..review.finding import Finding
 from .registry import make_finding, plan_check
 
-
 # --------------------------------------------------------------------------------------------------------------------
 # PLAN: what terraform will do
 # --------------------------------------------------------------------------------------------------------------------

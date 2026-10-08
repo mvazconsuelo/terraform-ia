@@ -10,7 +10,7 @@ import subprocess
 import sys
 from typing import Dict, List, Optional
 
-from .git_diff import git_changed_files
+from ..lib.git_diff import git_changed_files
 from ..terraform.terraform_map import Repo
 
 
@@ -20,7 +20,7 @@ def _run(command: List[str], folder: str) -> "subprocess.CompletedProcess[str]":
 
 def tflint_step(env: Optional[Dict[str, str]] = None) -> int:
     """TFLint on every module the PR affects. Every module is linted even if an earlier one fails. Reads BASE."""
-    env = os.environ if env is None else env
+    env = dict(os.environ) if env is None else env
     repo_root = os.path.abspath(".")
     modules = Repo(repo_root).affected_modules([change["path"] for change in git_changed_files(repo_root, env["BASE"])])
     if not modules:

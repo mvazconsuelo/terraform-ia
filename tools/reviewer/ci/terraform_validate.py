@@ -6,7 +6,7 @@ import subprocess
 import sys
 from typing import Dict, List, Optional
 
-from .git_diff import git_changed_files
+from ..lib.git_diff import git_changed_files
 from ..terraform.affected_roots import for_branch
 from ..terraform.terraform_map import Repo
 
@@ -37,7 +37,7 @@ def _validate_folders(folders: List[str], repo_root: str, runner_temp: str) -> L
 
 def validate_step(env: Optional[Dict[str, str]] = None) -> int:
     """`terraform validate` in every module and every root the PR affects. Reads BASE, BASE_REF and RUNNER_TEMP."""
-    env = os.environ if env is None else env
+    env = dict(os.environ) if env is None else env
     repo_root = os.path.abspath(".")
     repo = Repo(repo_root)
     paths = [change["path"] for change in git_changed_files(repo_root, env["BASE"])]

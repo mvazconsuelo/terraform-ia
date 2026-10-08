@@ -8,9 +8,9 @@ import subprocess
 import sys
 from typing import Dict, List, Optional
 
-from .git_diff import git_changed_files
+from ..lib.git_diff import git_changed_files
+from ..lib.github_actions import append_to_github_file
 from ..terraform.terraform_map import Repo
-from .github_actions import append_to_github_file
 
 
 def checkov_step(env: Optional[Dict[str, str]] = None, base: Optional[str] = None) -> int:
@@ -19,7 +19,7 @@ def checkov_step(env: Optional[Dict[str, str]] = None, base: Optional[str] = Non
     Checkov runs with --soft-fail: its findings are shown in the log but do not make it exit with an error, so they do not
     block yet. The number is published so the review shows the findings instead of a clean pass. The exit code is non-zero
     only when Checkov itself breaks."""
-    env = os.environ if env is None else env
+    env = dict(os.environ) if env is None else env
     repo_root = os.path.abspath(".")
     modules = Repo(repo_root).affected_modules([change["path"] for change in git_changed_files(repo_root, base or env["BASE"])])
 

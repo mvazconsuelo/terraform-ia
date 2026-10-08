@@ -20,7 +20,6 @@ from ..review.finding import Finding
 from ..terraform.terraform_map import Repo, glob_match
 from .registry import check, folder_of, make_finding, mentions_all
 
-
 # --------------------------------------------------------------------------------------------------------------------
 # MODULE: how modules are built, and what must not be built outside one
 # --------------------------------------------------------------------------------------------------------------------

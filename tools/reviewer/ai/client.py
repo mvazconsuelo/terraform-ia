@@ -70,16 +70,16 @@ class GeminiClient:
                 if error.code in TRANSIENT_HTTP and delay is not None:
                     time.sleep(delay)                 # a "high demand" spike: wait and try again
                     continue
-                raise AIError("Gemini HTTP {}: {}".format(error.code, error.read().decode(errors="replace")[:300]))
+                raise AIError("Gemini HTTP {}: {}".format(error.code, error.read().decode(errors="replace")[:300])) from error
             except urllib.error.URLError as error:
-                raise AIError("Gemini request failed: {}".format(error.reason))
+                raise AIError("Gemini request failed: {}".format(error.reason)) from error
             except (OSError, ValueError) as error:
-                raise AIError("Gemini request failed: {}".format(error))
+                raise AIError("Gemini request failed: {}".format(error)) from error
 
         try:
             return response["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError, TypeError):
-            raise AIError("Unexpected Gemini response: {}".format(json.dumps(response)[:300]))
+        except (KeyError, IndexError, TypeError) as error:
+            raise AIError("Unexpected Gemini response: {}".format(json.dumps(response)[:300])) from error
 
 
 def client_from_env(model: Optional[str] = None) -> Optional[GeminiClient]:

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List
 
-from ..redact_secrets import sanitize_value
+from ..lib.redact_secrets import sanitize_value
 
 # The attributes worth showing a reviewer. Everything else is left out, to keep the summary small and to expose less.
 INTERESTING = {

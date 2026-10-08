@@ -39,20 +39,6 @@ The `.tf` files call `modules/` directly and are **identical in every environmen
 - The pipeline writes an empty `backend "s3" {}` block (`backend.tf`, git-ignored) unless the root declares its own, and passes bucket, key, region, encryption and locking to `terraform init`, creates the bucket on the first `apply` when it is missing (private, versioned, encrypted, tagged) and refuses to `plan` if it does not exist. There is no bootstrap stack.
 - The trade-off of one state per environment: any change plans and locks the whole environment, including the database.
 
-## Run it locally (raw commands, local state)
-
-```bash
-export AWS_ACCESS_KEY_ID=...          # plus AWS_SECRET_ACCESS_KEY (and AWS_SESSION_TOKEN if temporary)
-export AWS_REGION=us-east-1           # required: there is no provider block, the region comes from here
-cd environments/dev
-terraform init
-terraform plan
-terraform apply
-terraform destroy                     # dev has deletion protection off
-```
-
-To use the shared S3 state from your machine, create `backend.tf` with `terraform { backend "s3" { key = "environments/dev/terraform.tfstate" } }` and run `terraform init -backend-config="bucket=<bucket>" -backend-config="region=<region>" -backend-config="encrypt=true" -backend-config="use_lockfile=true"`.
-
 Before the first real `apply`: set a real `database.engine_version` in `inputs.yaml` (`aws rds describe-db-engine-versions --engine aurora-postgresql --query 'DBEngineVersions[].EngineVersion'`), the prod certificate ARN in `alb.listeners` (a placeholder today) and a pinned `compute.ami_id` in prod.
 
 ## Delivery flow

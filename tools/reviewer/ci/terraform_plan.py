@@ -6,13 +6,13 @@ import sys
 from typing import Dict, Optional
 
 from ..aws import account
+from ..lib.github_actions import branch_of, fail
 from ..terraform.run_terraform import run_terraform
-from .github_actions import branch_of, fail
 
 
 def plan_step(env: Optional[Dict[str, str]] = None) -> int:
     """`terraform plan` of one root, saved to `tfplan`. Reads ROOT, INPUT_BRANCH or REF_NAME, AWS_REGION and the branch key variables."""
-    env = os.environ if env is None else env
+    env = dict(os.environ) if env is None else env
     aws_env, error = account.session(env, branch_of(env))
     if error:
         return fail(error)

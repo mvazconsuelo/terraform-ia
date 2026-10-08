@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 CATEGORIES = [
     "MODULE_STANDARD", "ARCHITECTURE", "SECURITY", "COST", "GOVERNANCE", "RELIABILITY",

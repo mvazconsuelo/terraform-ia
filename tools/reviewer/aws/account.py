@@ -58,6 +58,6 @@ def session(env: Dict[str, str], branch: str) -> Tuple[Optional[Dict[str, str]],
     if not region:
         return None, "Set the AWS_REGION secret."
     keys, error = credentials_for(target_for(branch), env)
-    if error:
-        return None, error
+    if error or keys is None:
+        return None, error or "No AWS keys."
     return process_env(keys, region), None
