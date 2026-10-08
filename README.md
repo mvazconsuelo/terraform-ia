@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/brand/hero.svg" alt="terra-ai: Terraform Module Engineering Platform" width="100%">
+<img src="docs/images/brand/hero.svg" alt="Terraform-ia: Terraform Module Engineering Platform" width="100%">
 
 <br>
 
@@ -57,7 +57,7 @@ tools/reviewer/       The reviewer: ci/ (one file per workflow step) · lib/ · 
 .github/workflows/    pull-request.yml (checks, plans, comment) · terraform.yml (plan / apply)
 common.yaml           project, state settings, AI switch, AWS account and deployable roots per branch
 docs/                 Setup, architecture, file map, the checks, module standard
-.claude/agents/       terra-ai-engineer: assistant that knows how this repository is built (proposes, never runs commands)
+.claude/agents/       terraform-ia-engineer: assistant that knows how this repository is built (proposes, never runs commands)
 ```
 
 </details>

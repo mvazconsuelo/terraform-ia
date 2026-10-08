@@ -2,7 +2,7 @@
 
 The comment has seven sections, in this order:
 
-  1. AI Summary                    the only text written by a model; with the AI off or failing, the rest is identical;
+  1. AI Gemini summary (optional)  the only text written by a model; with the AI off or failing, the rest is identical;
   2. Affected configurations       which Terraform root configurations the PR touches, and why;
   3. Checks                        the result of fmt, validate, TFLint, Checkov and the repository contract;
   4. Terraform plan                what the plan adds, changes, destroys and replaces;
@@ -71,11 +71,11 @@ def _without_trailing_blank(lines: List[str]) -> List[str]:
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# 1. AI Summary
+# 1. AI Gemini summary (optional)
 # ----------------------------------------------------------------------------------------------------------------
 def _ai_summary_section(review: Dict[str, Any]) -> List[str]:
     """The AI summary, or the reason it is missing (disabled, or it failed)."""
-    lines = ["## AI Summary", ""]
+    lines = ["## AI Gemini summary (optional)", ""]
     analysis = review.get("ai_analysis")
     status = review.get("ai_status") or {}
 

@@ -2,7 +2,7 @@
 
 [← README](../README.md)
 
-![terra-ai architecture](images/architecture.svg)
+![Terraform-ia architecture](images/architecture.svg)
 
 1. **A root configuration is the unit of work:** a folder with its own state, planned and applied on its own.
 2. **Code decides what runs and whether a change passes.** Discovery, the verdict and the account check are deterministic.
@@ -54,7 +54,7 @@ One state per root: key `<root path>/terraform.tfstate` in the bucket `<project>
 
 - **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed, else `PASS`. Risk is the highest severity found. A skipped check is not a failure.
 - **`PLAN-001`:** a plan that destroys or replaces a stateful resource is CRITICAL in a protected root (every root in a PR into production) and HIGH elsewhere.
-- **Comment:** one per PR, updated in place. The header shows the risk, the decision and the environment; then seven sections: AI Summary, affected configurations, checks, Terraform plan (replacements included), cost, findings, decision.
+- **Comment:** one per PR, updated in place. The header shows the risk, the decision and the environment; then seven sections: AI Gemini summary (optional), affected configurations, checks, Terraform plan (replacements included), cost, findings, decision.
 
 Every rule, with its severity and the function that implements it, is in [The checks](checks.md).
 
