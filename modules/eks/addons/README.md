@@ -46,7 +46,3 @@ module "addons" {
 ## Cost
 
 Core add-ons are free; some (e.g. certain observability/security add-ons from the AWS Marketplace) bill separately; the pods they run use node capacity.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (mock provider, no credentials).

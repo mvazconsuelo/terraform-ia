@@ -38,7 +38,3 @@ Changing `function_name` replaces the function. The log group is created first s
 ## Cost
 
 Requests x duration x memory; arm64 is cheaper than x86_64; tracing and VPC attachment add cost/latency.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (uses `mock_provider`; no credentials).

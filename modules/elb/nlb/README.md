@@ -38,7 +38,3 @@ Changing `name`, type or subnets' AZs replaces the NLB (new DNS name, downtime).
 ## Cost
 
 Hourly + LCU; cross-zone adds inter-AZ data charges.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (uses `mock_provider`; no credentials).

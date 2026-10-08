@@ -42,7 +42,3 @@ Uses `name_prefix` + `create_before_destroy`, so replacement (e.g. changed `desc
 ## Cost
 
 Free.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (uses `mock_provider`; no credentials).

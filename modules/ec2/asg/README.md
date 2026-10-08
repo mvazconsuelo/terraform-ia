@@ -43,7 +43,3 @@ module "web" {
 ## Cost
 
 Instance type x average capacity; Spot lowers cost but can be interrupted; scheduled scale-down is the cheapest saving for non-production.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (mock provider, no credentials).

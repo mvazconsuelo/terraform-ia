@@ -43,7 +43,3 @@ Changing `name` replaces the bucket (data loss unless emptied/migrated). `force_
 ## Cost
 
 Storage and requests only. Versioning without `noncurrent_version_expiration_days` grows unbounded.
-
-## Testing
-
-`terraform init -backend=false && terraform test`

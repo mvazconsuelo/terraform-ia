@@ -1,0 +1,10 @@
+# Files the AI summary must not read when it builds the review of a pull request. One pattern per line; `#` starts a comment.
+#
+#   docs/     a trailing slash means that whole folder
+#   *.svg     anything else is a pattern matched against the path and the file name
+#
+# Secrets and state (*.tfstate, .env, *.pem, *.tfvars, keys...) are ALWAYS blocked by the code (tools/reviewer/redact_secrets.py);
+# this list is for what else the AI does not need to read.
+.history/
+.terraform.lock.hcl
+*.svg

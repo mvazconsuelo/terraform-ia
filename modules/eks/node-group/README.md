@@ -58,7 +58,3 @@ Validations: `min ≤ desired ≤ max`, enum capacity type and taint effect, SPO
 ## Cost
 
 Driven by instance type × `desired_size` (up to `max_size`); SPOT lowers price at interruption risk. Never host the `system` group on SPOT.
-
-## Testing
-
-`terraform init -backend=false && terraform test`

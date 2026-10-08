@@ -1,5 +1,6 @@
 name: terraform
 
+# The workflow has no logic of its own: each step calls one file of tools/reviewer/ci, which decides what to do.
 # The only workflow that touches AWS: init -> plan -> (apply) of each Terraform root configuration a change affects.
 #   called by pull-request.yml ... read-only plan of an affected root (its summary feeds the PR comment)
 #   push to develop or main ...... apply the roots the push affected (edited, or using a changed shared module or file)
@@ -44,6 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.t.outputs.matrix }}
+      count: ${{ steps.t.outputs.count }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,100 +59,56 @@ jobs:
           EVENT: ${{ github.event_name }}
           ROOT: ${{ inputs.root }}
           BEFORE: ${{ github.event.before }}
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          engine() { PYTHONPATH=tools python -m reviewer.engine "$@"; }
-          if [ "$EVENT" = "push" ]; then
-            base="$BEFORE"; case "$base" in 0000000*) base="HEAD~1" ;; esac
-            matrix=$(engine discover --base "$base" --branch "$BRANCH" --format matrix)
-          else   # one root, named by the caller or by hand
-            matrix=$(engine discover --all --format matrix | jq -c --arg r "$ROOT" '{include: [.include[] | select(.root == $r)]}')
-          fi
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          REF_NAME: ${{ github.ref_name }}
+        run: PYTHONPATH=tools python -m reviewer.ci.select_roots
 
   run:
-    name: ${{ inputs.mode || 'apply' }} ${{ matrix.root }}
+    name: ${{ matrix.root }}
     needs: target
-    if: needs.target.outputs.matrix != '{"include":[]}'
+    if: needs.target.outputs.count != '0'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       max-parallel: 1 # roots may depend on each other (networking before workloads): apply them in order
       matrix: ${{ fromJSON(needs.target.outputs.matrix) }}
     concurrency:
-      group: terraform-${{ inputs.branch || github.ref_name }}-${{ matrix.slug }}
+      group: terraform-${{ matrix.slug }}
       cancel-in-progress: false
+    # The workflow only hands over raw values. What they mean (plan or apply, which AWS account) is decided in tools/reviewer/ci.
     env:
       ROOT: ${{ matrix.root }}
       SLUG: ${{ matrix.slug }}
-      MODE: ${{ inputs.mode || 'apply' }}
-      BRANCH: ${{ inputs.branch || github.ref_name }}
+      INPUT_MODE: ${{ inputs.mode }}
+      INPUT_BRANCH: ${{ inputs.branch }}
+      REF_NAME: ${{ github.ref_name }}
       KEY_ID_DEVELOP: ${{ secrets.AWS_ACCESS_KEY_ID_DEVELOP }}
       KEY_SECRET_DEVELOP: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEVELOP }}
       KEY_ID_MAIN: ${{ secrets.AWS_ACCESS_KEY_ID_MAIN }}
       KEY_SECRET_MAIN: ${{ secrets.AWS_SECRET_ACCESS_KEY_MAIN }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
-      HAS_INFRACOST: ${{ secrets.INFRACOST_API_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "~> 1.10"
-      - run: |
-          set -euo pipefail
-          : "${AWS_REGION:?Set the AWS_REGION secret}"
-
-          # Which account: main -> the *_MAIN keys, everything else -> the *_DEVELOP keys.
-          if [ "$BRANCH" = "main" ]; then
-            TARGET=main; export AWS_ACCESS_KEY_ID="$KEY_ID_MAIN"; export AWS_SECRET_ACCESS_KEY="$KEY_SECRET_MAIN"
-          else
-            TARGET=develop; export AWS_ACCESS_KEY_ID="$KEY_ID_DEVELOP"; export AWS_SECRET_ACCESS_KEY="$KEY_SECRET_DEVELOP"
-          fi
-          : "${AWS_ACCESS_KEY_ID:?Missing the AWS_ACCESS_KEY_ID_${TARGET^^} secret}"
-          : "${AWS_SECRET_ACCESS_KEY:?Missing the AWS_SECRET_ACCESS_KEY_${TARGET^^} secret}"
-
-          # Guard against keys loaded into the wrong secret: the account must be the one common.yaml expects for this branch.
-          EXPECTED=$(yq ".terraform.accounts.${TARGET}" common.yaml)
-          { [ -n "$EXPECTED" ] && [ "$EXPECTED" != "null" ]; } || { echo "::error::terraform.accounts.${TARGET} is missing in common.yaml. Nothing was run."; exit 1; }
-          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-          [ "$ACCOUNT" = "$EXPECTED" ] || { echo "::error::The AWS keys for '${TARGET}' belong to account ${ACCOUNT}, but common.yaml expects ${EXPECTED}. Nothing was run."; exit 1; }
-
-          # The backend block is generated only when the root has none.
-          grep -qE '^\s*backend\s+"s3"' "$ROOT"/*.tf || printf 'terraform {\n  backend "s3" {}\n}\n' > "$ROOT/backend.tf"
-          BUCKET="$(yq .project common.yaml)-tfstate-${ACCOUNT}-${AWS_REGION}"
-          aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null || { echo "::error::State bucket $BUCKET does not exist. Create it once (infra-example/README.md)."; exit 1; }
-
-          terraform -chdir="$ROOT" init -input=false \
-            -backend-config="bucket=${BUCKET}" \
-            -backend-config="key=${ROOT}/terraform.tfstate" \
-            -backend-config="region=${AWS_REGION}" \
-            -backend-config="encrypt=$(yq .backend.encrypt common.yaml)" \
-            -backend-config="use_lockfile=$(yq .backend.use_lockfile common.yaml)"
-          terraform -chdir="$ROOT" plan -input=false -lock-timeout=10m -out=tfplan
-          { echo "### ${ROOT} (${MODE})"; echo '```'; terraform -chdir="$ROOT" show -no-color tfplan; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$MODE" = "apply" ]; then terraform -chdir="$ROOT" apply -input=false -lock-timeout=10m tfplan; fi
-
-      # ---- plan only: a sanitized summary (never the raw plan) and the cost estimate, for the PR comment.
       - uses: actions/setup-python@v5
-        if: env.MODE == 'plan'
         with:
           python-version: "3.12"
-      - uses: infracost/actions/setup@v3
-        if: env.MODE == 'plan' && env.HAS_INFRACOST == 'true'
+      - run: python -m pip install -q pyyaml
+      - uses: hashicorp/setup-terraform@v3
         with:
-          api-key: ${{ secrets.INFRACOST_API_KEY }}
-      - name: summarize the plan and estimate its cost
-        if: env.MODE == 'plan'
-        run: |
-          set -euo pipefail
-          terraform -chdir="$ROOT" show -json tfplan > "$RUNNER_TEMP/raw.json"
-          python3 -m pip install -q pyyaml
-          PYTHONPATH=tools python -m reviewer.engine plan-summary --plan "$RUNNER_TEMP/raw.json" --out "plan-${SLUG}.json"
-          [ "$HAS_INFRACOST" = "true" ] && { infracost diff --path "$RUNNER_TEMP/raw.json" --format json --out-file "cost-${SLUG}.json" || echo "::warning::Infracost failed"; }
-          rm -f "$RUNNER_TEMP/raw.json"
+          terraform_version: "~> 1.16.0"
+      - name: terraform init
+        run: PYTHONPATH=tools python -m reviewer.ci.terraform_init
+      - name: terraform plan
+        run: PYTHONPATH=tools python -m reviewer.ci.terraform_plan
+      - name: terraform apply
+        run: PYTHONPATH=tools python -m reviewer.ci.terraform_apply
+      - name: terraform show -json
+        run: PYTHONPATH=tools python -m reviewer.ci.terraform_show_json
+      - name: infracost
+        env:
+          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+        run: PYTHONPATH=tools python -m reviewer.ci.infracost_estimate
       - uses: actions/upload-artifact@v4
-        if: env.MODE == 'plan' && always()
+        if: always()
         with:
           name: plan-${{ matrix.slug }}
           path: |
