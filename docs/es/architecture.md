@@ -36,7 +36,7 @@ Los `*.md` no afectan nada. Las raíces no afectadas nunca se inicializan, plani
 | `main` (producción) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | `terraform.accounts.main` |
 | `develop` y cualquier otra rama | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | `terraform.accounts.develop` |
 
-La rama elige las llaves (la rama destino en un PR, la rama del push en un push). Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y la compara con `terraform.accounts`; si no coincide, falta un secret o falta un id, la ejecución se detiene antes de tocar nada. `terraform.deploy.<rama>` lista las raíces que cada rama puede planificar, revisar y aplicar, así que un push a `develop` nunca toca raíces de producción aunque compartan módulos.
+La rama elige las llaves (la rama destino en un PR, la rama seleccionada en una ejecución manual). Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y la compara con `terraform.accounts`; si no coincide, falta un secret o falta un id, la ejecución se detiene antes de tocar nada. `terraform.deploy.<rama>` lista las raíces que cada rama puede planificar, revisar y aplicar, así que una ejecución en `develop` nunca toca raíces de producción aunque compartan módulos.
 
 ## State
 
@@ -46,7 +46,7 @@ Un state por raíz: clave `<ruta de la raíz>/terraform.tfstate` en el bucket `<
 
 **`pull-request.yml`**: `discover` → `fmt` · `python` (ruff, mypy) · `validate` · `tflint` · `checkov` (módulos afectados) · `contract` → `plan` por cada raíz afectada (llama a `terraform.yml`, solo lectura) → `review` (comentario). Un PR hacia la rama por defecto (producción) omite esos seis checks, que ya pasaron en el PR hacia `develop`, ejecuta plan, costo y revisión con las llaves de producción, y marca todas las raíces como protegidas. Los PR de forks no reciben secrets ni IA.
 
-**`terraform.yml`**: lo llaman los PR para un plan de solo lectura; en un push a `develop` o `main` descubre las raíces que ese push afectó para esa rama y ejecuta `init` → `plan` → `apply` en cada una, de a una; también se puede ejecutar a mano con `gh workflow run`.
+**`terraform.yml`**: lo llaman los PR para un plan de solo lectura, y se ejecuta a mano para planificar o aplicar una raíz (`gh workflow run`). **Fusionar un pull request nunca toca AWS**: desplegar es siempre una ejecución manual y explícita.
 
 ## El reviewer
 

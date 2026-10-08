@@ -23,7 +23,7 @@ Cada archivo y carpeta del repositorio: qué hace, para qué sirve y qué repres
 | Archivo | Qué hace |
 | --- | --- |
 | `pull-request.yml` | Se ejecuta en cada pull request. Descubre las raíces y los módulos afectados, ejecuta `fmt`, los checks de Python (ruff, mypy), `validate`, TFLint, Checkov y el contrato del repositorio, pide a `terraform.yml` un plan de solo lectura de cada raíz afectada y arma el comentario de revisión. Un PR hacia producción omite esos seis checks y ejecuta solo plan, costo y revisión. |
-| `terraform.yml` | El único workflow que toca AWS. Para una raíz elige las llaves de la rama, verifica la cuenta, comprueba el bucket de state y ejecuta `init` → `plan` → (`apply`). Lo llaman los PR para un plan, lo dispara un push a `develop` o `main` para un apply, o se inicia a mano. |
+| `terraform.yml` | El único workflow que toca AWS. Para una raíz elige las llaves de la rama, verifica la cuenta, comprueba el bucket de state y ejecuta `init` → `plan` → (`apply`). Lo llaman los PR para un plan, o se inicia a mano para un plan o un apply: fusionar nunca despliega. |
 
 ## `tools/reviewer/`: el reviewer
 
@@ -93,7 +93,7 @@ del paso que ves en GitHub.
 | Archivo | Paso | Qué hace |
 | --- | --- | --- |
 | `discover_roots.py` | affected configurations | Las raíces que afecta un PR y que su rama destino posee: entrega al workflow la matriz para los jobs de plan, cuántas son y la lista con los motivos. |
-| `select_roots.py` | which roots (terraform.yml) | Las raíces sobre las que actúa una ejecución de `terraform.yml`: las que afectó un push, o la que se pidió. |
+| `select_roots.py` | which roots (terraform.yml) | La raíz sobre la que actúa una ejecución de `terraform.yml`: la que se pidió (una ejecución manual además debe estar permitida por `terraform.deploy` para su rama). |
 | `contract_check.py` | repository contract | Las reglas que leen el código, sobre todo el repositorio; falla ante cualquier hallazgo High o Critical. |
 | `terraform_validate.py` | terraform validate | `terraform validate` en los módulos y raíces que afecta un PR, con una caché de providers compartida. |
 | `terraform_tflint.py` | TFLint | TFLint, con el `.tflint.hcl` del repositorio, sobre los módulos afectados. |

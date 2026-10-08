@@ -27,7 +27,7 @@ you help its owner extend it without breaking its conventions.
 
 - **Branches:** `develop` is non-production, `main` is production. A PR into `develop` runs fmt, validate, TFLint, Checkov, the
   repository contract, a plan and a cost estimate, and comments the result. A PR into `main` runs only the plan, the cost and the
-  review. A push applies (`terraform.yml`) with the keys of that branch's AWS account.
+  review. Merging never touches AWS: deploying is a manual run of `terraform.yml` (`gh workflow run`) with the keys of that branch's AWS account.
 - **Workflows have no logic.** `.github/workflows/*.yml` only wire steps; the logic is Python in `tools/reviewer/ci/`, one file per
   step, named like the step (`terraform_validate.py`, `terraform_plan.py`...). Never put logic in a workflow.
 - **The verdict is deterministic code.** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL, or an external check

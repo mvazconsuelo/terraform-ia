@@ -1,11 +1,9 @@
 name: terraform
 
 # The workflow has no logic of its own: each step calls one file of tools/reviewer/ci, which decides what to do.
-# The only workflow that touches AWS: init -> plan -> (apply) of each Terraform root configuration a change affects.
+# The only workflow that touches AWS: init -> plan -> (apply) of one Terraform root configuration.
 #   called by pull-request.yml ... read-only plan of an affected root (its summary feeds the PR comment)
-#   push to develop or main ...... apply the roots the push affected (edited, or using a changed shared module or file)
-#                                  that terraform.deploy in common.yaml allows for that branch (no entry = all of them)
-#   manual (Run workflow) ........ plan or apply one root
+#   manual (Run workflow) ........ plan or apply one root. This is the ONLY way to deploy: merging a pull request never touches AWS.
 # The branch decides the AWS account: develop uses the AWS_*_DEVELOP secrets, main uses the AWS_*_MAIN secrets (any other
 # branch, e.g. a manual run, uses develop's). Before anything runs, the account of the keys is compared with
 # terraform.accounts.<develop|main> in common.yaml, so keys pasted into the wrong secret stop the run. State: bucket
@@ -23,8 +21,6 @@ on:
       mode:
         required: true
         type: string
-  push:
-    branches: [develop, main]
   workflow_dispatch:
     inputs:
       root:
@@ -58,7 +54,6 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           ROOT: ${{ inputs.root }}
-          BEFORE: ${{ github.event.before }}
           REF_NAME: ${{ github.ref_name }}
         run: PYTHONPATH=tools python -m reviewer.ci.select_roots
 

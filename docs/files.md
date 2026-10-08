@@ -23,7 +23,7 @@ Every file and folder in the repository: what it does, what it is for and what i
 | File | What it does |
 | --- | --- |
 | `pull-request.yml` | Runs on every pull request. Discovers the affected roots and modules, runs `fmt`, the Python checks (ruff, mypy), `validate`, TFLint, Checkov and the repository contract, asks `terraform.yml` for a read-only plan of each affected root, then builds the review comment. A PR into production skips those six checks and runs plan, cost and review only. |
-| `terraform.yml` | The only workflow that touches AWS. For one root it selects the branch's keys, verifies the account, checks the state bucket, then runs `init` → `plan` → (`apply`). Called by PRs for a plan, triggered by a push to `develop` or `main` for an apply, or started by hand. |
+| `terraform.yml` | The only workflow that touches AWS. For one root it selects the branch's keys, verifies the account, checks the state bucket, then runs `init` → `plan` → (`apply`). Called by PRs for a plan, or started by hand for a plan or an apply: merging never deploys. |
 
 ## `tools/reviewer/`: the reviewer
 
@@ -93,7 +93,7 @@ of the step you see in GitHub.
 | File | Step | What it does |
 | --- | --- | --- |
 | `discover_roots.py` | affected configurations | The roots a PR affects and its target branch owns: gives the workflow the matrix for the plan jobs, how many there are, and the list with the reasons. |
-| `select_roots.py` | which roots (terraform.yml) | The roots a `terraform.yml` run acts on: those a push affected, or the one asked for. |
+| `select_roots.py` | which roots (terraform.yml) | The root a `terraform.yml` run acts on: the one asked for (a manual run must also be allowed by `terraform.deploy` for its branch). |
 | `contract_check.py` | repository contract | The rules that read the code, over the whole repository; fails on any High or Critical finding. |
 | `terraform_validate.py` | terraform validate | `terraform validate` in the modules and roots a PR affects, with one shared provider cache. |
 | `terraform_tflint.py` | TFLint | TFLint, with the repository's `.tflint.hcl`, on the affected modules. |

@@ -36,7 +36,7 @@ No folder name is assumed. Roots come from `terraform.roots` (globs) or are infe
 | `main` (production) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | `terraform.accounts.main` |
 | `develop` and any other branch | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | `terraform.accounts.develop` |
 
-The branch picks the keys (the target branch for a PR, the pushed branch for a push). Before `init` the pipeline asks AWS for the keys' account and compares it with `terraform.accounts`; a mismatch, a missing secret or a missing id stops the run before anything is touched. `terraform.deploy.<branch>` lists the roots each branch may plan, review and apply, so a push to `develop` never touches production roots even when they share modules.
+The branch picks the keys (the target branch for a PR, the selected branch for a manual run). Before `init` the pipeline asks AWS for the keys' account and compares it with `terraform.accounts`; a mismatch, a missing secret or a missing id stops the run before anything is touched. `terraform.deploy.<branch>` lists the roots each branch may plan, review and apply, so a run on `develop` never touches production roots even when they share modules.
 
 ## State
 
@@ -46,7 +46,7 @@ One state per root: key `<root path>/terraform.tfstate` in the bucket `<project>
 
 **`pull-request.yml`**: `discover` → `fmt` · `python` (ruff, mypy) · `validate` · `tflint` · `checkov` (affected modules) · `contract` → `plan` per affected root (calls `terraform.yml`, read-only) → `review` (comment). A PR into the default branch (production) skips those six checks, which already passed in the PR into `develop`, runs plan, cost and review with the production keys, and marks every root protected. Fork PRs get no secrets and no AI.
 
-**`terraform.yml`**: called by PRs for a read-only plan; on push to `develop` or `main` it discovers the roots that push affected for that branch and runs `init` → `plan` → `apply` for each, one at a time; also runnable by hand with `gh workflow run`.
+**`terraform.yml`**: called by PRs for a read-only plan, and run by hand to plan or apply one root (`gh workflow run`). **Merging a pull request never touches AWS**: deploying is always an explicit, manual run.
 
 ## The reviewer
 

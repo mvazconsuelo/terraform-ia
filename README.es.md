@@ -23,7 +23,7 @@ Una plataforma Terraform: una biblioteca de módulos AWS reutilizables, las conf
 - encuentra **qué configuraciones raíz afecta un cambio** (incluidas las que solo usan un módulo compartido modificado) y ejecuta Terraform solo para esas,
 - hace el plan, estima el costo y revisa el cambio contra el contrato propio del repositorio,
 - **decide aprobado o rechazado con código**, y opcionalmente una IA escribe un resumen en lenguaje claro de la evidencia,
-- aplica al hacer merge, con **`develop` y `main` asignadas a cuentas AWS distintas**.
+- despliega solo cuando lo pides (una ejecución manual; fusionar nunca toca AWS), con **`develop` y `main` asignadas a cuentas AWS distintas**.
 
 No asume nombres de carpeta: funciona igual con `infra/web`, `terraform/networking` o `environments/dev`.
 
@@ -47,7 +47,7 @@ No asume nombres de carpeta: funciona igual con `infra/web`, `terraform/networki
 Para ejecutar el pipeline en tu propio repositorio: [Instalación](docs/es/install.md).
 
 > [!NOTE]
-> Los planes, los checks y el comentario del PR ya se ejecutaron en GitHub. El `terraform apply` al hacer merge y el resumen de IA todavía no se validaron de punta a punta.
+> Los planes, los checks y el comentario del PR ya se ejecutaron en GitHub. El `terraform apply` (manual) todavía no se validó de punta a punta.
 
 <details>
 <summary><b>Estructura del repositorio</b></summary>
