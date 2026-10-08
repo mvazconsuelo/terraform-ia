@@ -1,6 +1,6 @@
 # Qué es cada archivo
 
-[← README](../../README.es.md) · [English](../files.md) · Español
+[English](../files.md) · Español
 
 Cada archivo y carpeta del repositorio: qué hace, para qué sirve y qué representa.
 
@@ -166,4 +166,8 @@ Una capa web en una VPC: un Application Load Balancer delante de un Auto Scaling
 | `files.md` | Este archivo. |
 | `checks.md` | Cada regla que aplica el reviewer: ID, severidad, qué detecta y dónde vive. |
 | `es/` | La misma documentación en español; el inglés es el idioma por defecto. |
-| `images/` | `hero.svg` y `architecture.svg`, usados por el README. |
+| `images/` | `hero.svg` y `architecture.svg`, usados por el README. Los logos del stack del diagrama vienen de [Simple Icons](https://simpleicons.org) (CC0); los nombres y marcas pertenecen a sus dueños. |
+
+---
+
+[← Anterior: Cómo funciona](architecture.md) · [README](../../README.es.md) · [Siguiente: Los checks →](checks.md)

@@ -27,7 +27,7 @@ Una plataforma Terraform: una biblioteca de módulos AWS reutilizables, las conf
 
 No asume nombres de carpeta: funciona igual con `infra/web`, `terraform/networking` o `environments/dev`.
 
-![Arquitectura: ramas, pull-request.yml, terraform.yml, el reviewer, el comentario del PR y las dos cuentas AWS](docs/images/architecture.svg)
+![De un cambio a un despliegue: cambio, checks, revisión, merge y despliegue manual en la cuenta AWS de dev o de prod](docs/images/architecture.svg)
 
 ## Puntos clave
 
@@ -39,6 +39,29 @@ No asume nombres de carpeta: funciona igual con `infra/web`, `terraform/networki
 | **Reviewer** | Reglas (límites de módulos, tags obligatorios, plan y costo contra los estándares) sobre `terraform`, TFLint, Checkov e Infracost. |
 | **Resumen de IA** | Un texto validado contra un esquema y verificado: cada recurso, archivo y precio que menciona se contrasta con la evidencia. Apagado por defecto; un modelo que falla nunca cambia el resultado. |
 | **Módulos** | Módulos AWS reutilizables, cada uno con su README y entradas tipadas y validadas. |
+
+## Módulos
+
+Cada módulo tiene su propio README con uso, recursos, entradas, salidas, ciclo de vida y costo. El [estándar de módulos](docs/es/module-standard.md) es el contrato que siguen.
+
+| Module | Qué te da |
+| --- | --- |
+| [`vpc`](modules/vpc/README.md) | VPC con capa privada, capa pública opcional, tablas de rutas por zona, NAT opcional y un endpoint gateway gratuito de S3. |
+| [`security-group`](modules/security-group/README.md) | Security group de mínimo privilegio, un recurso por regla; sin reglas y sin egress por defecto. |
+| [`iam`](modules/iam/README.md) | Rol IAM con política de confianza, políticas administradas e inline y un perfil de instancia opcional. |
+| [`s3`](modules/s3/README.md) | Bucket privado, cifrado y con versionado, con política solo TLS y reglas de ciclo de vida opcionales. |
+| [`aurora`](modules/aurora/README.md) | Cluster Aurora, PostgreSQL o MySQL (lo elige la entrada `engine`). |
+| [`lambda`](modules/lambda/README.md) | Función Lambda con su log group, conexión opcional a VPC, cola de mensajes fallidos y trazado. |
+| [`eventbridge`](modules/eventbridge/README.md) | Reglas y destinos de EventBridge con reintentos, cola de mensajes fallidos y permisos de invocación. |
+| [`api-gateway`](modules/api-gateway/README.md) | HTTP API con integraciones Lambda y privadas (VPC Link), logs de acceso y limitación de tráfico. |
+| [`elb/alb`](modules/elb/alb/README.md) | Application Load Balancer: listeners HTTP/HTTPS, reglas, redirecciones, WAF y logs de acceso opcionales. |
+| [`elb/nlb`](modules/elb/nlb/README.md) | Network Load Balancer con target groups y listeners. |
+| [`ec2/launch-template`](modules/ec2/launch-template/README.md) | Launch template endurecido (IMDSv2, volumen raíz cifrado), compartido por `ec2/instances` y `ec2/asg`. |
+| [`ec2/instances`](modules/ec2/instances/README.md) | Instancias EC2 independientes a partir de un launch template, privadas por defecto. |
+| [`ec2/asg`](modules/ec2/asg/README.md) | Auto Scaling Group sobre un launch template, con renovación gradual, propagación de tags y políticas de escalado. |
+| [`eks/cluster`](modules/eks/cluster/README.md) | Plano de control EKS: endpoint privado por defecto, access entries, logs, cifrado de secrets opcional e IRSA. |
+| [`eks/node-group`](modules/eks/node-group/README.md) | Node groups administrados de EKS, expresados como intención. |
+| [`eks/addons`](modules/eks/addons/README.md) | Add-ons administrados de EKS, instalados solo cuando se listan. |
 
 ## Stack
 

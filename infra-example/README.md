@@ -1,6 +1,6 @@
 # infra-example
 
-[← Repository README](../README.md) · English · [Español](README.es.md)
+English · [Español](README.es.md)
 
 Two example **root configurations** built from `modules/`: `dev/web-demo` and `prod/web-demo`. The reviewer and the workflows treat
 them like any other root; nothing in the platform depends on these names. Setup, branches, secrets and the pipeline are in
@@ -90,3 +90,7 @@ ARN in `alb.listeners` (a placeholder today) and a pinned `compute.ami_id` in pr
 Copy `infra-example/dev/web-demo` to `infra-example/<environment>/web-demo`, set `environment` in `inputs.yaml` to the parent folder
 name, edit the values, and add the new root under `terraform.deploy` for the branch that should apply it. The bucket and the state key
 follow from the folder and the account.
+
+---
+
+[← Repository README](../README.md)

@@ -1,6 +1,6 @@
 # Cómo funciona
 
-[← README](../../README.es.md) · [English](../architecture.md) · Español
+[English](../architecture.md) · Español
 
 ![Arquitectura de Terraform-ia](../images/architecture.svg)
 
@@ -91,3 +91,7 @@ Cada archivo y para qué sirve: [Qué es cada archivo](files.md). Cada regla: [L
 - Producción es la rama por defecto del repositorio.
 - No hay tests unitarios de los módulos ni del reviewer: la corrección se apoya en `validate`, el contrato, el plan y las preconditions. El Python del reviewer se revisa con ruff y mypy en cada PR.
 - La verificación de tags sobre los recursos del plan no se muestra en el comentario; los tags los exige `TAGS-001` sobre el código.
+
+---
+
+[← Anterior: Instalación](install.md) · [README](../../README.es.md) · [Siguiente: Qué es cada archivo →](files.md)
