@@ -28,7 +28,7 @@ def pr_comment(env: Optional[Dict[str, str]] = None, markdown: str = "review.md"
         request = urllib.request.Request(
             url, method=method, data=None if payload is None else json.dumps(payload).encode(),
             headers={"Authorization": "Bearer " + env["GITHUB_TOKEN"], "Accept": "application/vnd.github+json",
-                     "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "terra-ai-reviewer", "Content-Type": "application/json"},
+                     "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "terraform-ia-reviewer", "Content-Type": "application/json"},
         )
         with urllib.request.urlopen(request, timeout=60) as response:
             return json.load(response)
