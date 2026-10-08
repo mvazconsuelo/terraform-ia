@@ -53,10 +53,11 @@ To run the pipeline on your own repository: [Setup](docs/install.md).
 ```text
 modules/              Reusable AWS modules (README each)
 infra-example/        Example roots: dev/web-demo and prod/web-demo
-tools/reviewer/       The reviewer: ci/ (one file per workflow step) · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
+tools/reviewer/       The reviewer: ci/ (one file per workflow step) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
 .github/workflows/    pull-request.yml (checks, plans, comment) · terraform.yml (plan / apply)
-common.yaml           project, state settings, AI switch, accounts per branch, optional terraform: block
+common.yaml           project, state settings, AI switch, AWS account and deployable roots per branch
 docs/                 Setup, architecture, file map, the checks, module standard
+.claude/agents/       terra-ai-engineer: assistant that knows how this repository is built (proposes, never runs commands)
 ```
 
 </details>

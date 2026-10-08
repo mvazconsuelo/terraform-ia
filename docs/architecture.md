@@ -9,7 +9,7 @@
 3. **The AI only reads.** It writes a summary of the evidence; it cannot change a verdict or start anything.
 
 ```
-git_diff → what changed ─► terraform/ → what it affects ─► rules/ → which rules it breaks
+lib/git_diff → what changed ─► terraform/ → what it affects ─► rules/ → which rules it breaks
                                                               │
                        review/ → verdict and PR comment  ◄────┘        ai/ → optional summary
 ```
@@ -27,7 +27,7 @@ No folder name is assumed. Roots come from `terraform.roots` (globs) or are infe
 | A shared file it reads changed (`file()`, `templatefile()` with `../` paths) | `common.yaml` |
 | `.terraform-version` changed | every root |
 
-`*.md` affects nothing. Unaffected roots are never initialised, planned, validated or applied. The same logic gives the affected modules (`discover --modules`), which `validate`, `test`, TFLint and Checkov run on.
+`*.md` affects nothing. Unaffected roots are never initialised, planned, validated or applied. The same logic gives the affected modules (`Repo.affected_modules`), which `validate`, TFLint and Checkov run on.
 
 ## Branches and accounts
 
@@ -44,17 +44,17 @@ One state per root: key `<root path>/terraform.tfstate` in the bucket `<project>
 
 ## Pipelines
 
-**`pull-request.yml`**: `discover` → `fmt` · `validate` · `tflint` · `checkov` (affected modules) · `contract` → `plan` per affected root (calls `terraform.yml`, read-only) → `review` (comment). A PR into the default branch (production) skips the five checks already passed in the PR into `develop`, runs plan, cost and review with the production keys, and marks every root protected. Fork PRs get no secrets.
+**`pull-request.yml`**: `discover` → `fmt` · `python` (ruff, mypy) · `validate` · `tflint` · `checkov` (affected modules) · `contract` → `plan` per affected root (calls `terraform.yml`, read-only) → `review` (comment). A PR into the default branch (production) skips those six checks, which already passed in the PR into `develop`, runs plan, cost and review with the production keys, and marks every root protected. Fork PRs get no secrets and no AI.
 
 **`terraform.yml`**: called by PRs for a read-only plan; on push to `develop` or `main` it discovers the roots that push affected for that branch and runs `init` → `plan` → `apply` for each, one at a time; also runnable by hand with `gh workflow run`.
 
 ## The reviewer
 
-`tools/reviewer`: findings from contract checks on the changed files (`rules/rules.yaml` + `rules/code_rules.py`) and checks on the plan and cost, then:
+`tools/reviewer`: findings from contract checks on the code (`rules/rules.yaml` + `rules/code_rules.py`) and checks on the plan and cost, then:
 
 - **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed, else `PASS`. Risk is the highest severity found. A skipped check is not a failure.
 - **`PLAN-001`:** a plan that destroys or replaces a stateful resource is CRITICAL in a protected root (every root in a PR into production) and HIGH elsewhere.
-- **Comment:** AI Summary, then the evidence (affected configurations, validation, plan, resource changes, replacements, cost, governance, module standard, contract, finding counts, decision). The header shows the risk, the decision and the environment.
+- **Comment:** one per PR, updated in place. The header shows the risk, the decision and the environment; then seven sections: AI Summary, affected configurations, checks, Terraform plan (replacements included), cost, findings, decision.
 
 Every rule, with its severity and the function that implements it, is in [The checks](checks.md).
 
@@ -87,4 +87,5 @@ Every file and what it is for: [What each file is](files.md). Every rule: [The c
 - Infracost may not price resources it cannot resolve in a plan (for example an Auto Scaling Group whose launch template is created in the same plan); the cost section lists what it could not price.
 - Roots are applied in path order; dependencies between roots are not modelled.
 - Production means the repository's default branch.
-- There are no unit tests for modules or for the reviewer in this repository: correctness rests on `validate`, the contract, the plan and the preconditions.
+- There are no unit tests for modules or for the reviewer: correctness rests on `validate`, the contract, the plan and the preconditions. The reviewer's Python is checked with ruff and mypy on every PR.
+- The tag check on planned resources is not shown in the comment; tags are enforced on the code by `TAGS-001`.

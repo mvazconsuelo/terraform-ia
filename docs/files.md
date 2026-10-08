@@ -10,8 +10,10 @@ Every file and folder in the repository: what it does, what it is for and what i
 | --- | --- |
 | `README.md` | Entry point: what the project is, the architecture and where to start. |
 | `common.yaml` | The shared configuration. Terraform reads `project` (tags and names); the pipeline and the reviewer read `backend`, `ai`, and `terraform` (`accounts`, `deploy`, and the optional `roots`, `modules`, `protected`, `conventions`). It represents the one place a team edits to adapt the platform to its accounts. |
-| `.terraform-version` | The Terraform version for local tooling (for example tfenv). A change to it makes every root "affected". |
+| `.terraform-version` | The Terraform version for tools such as tfenv (the workflows pin `~> 1.16.0`). A change to it makes every root "affected". |
 | `.tflint.hcl` | TFLint configuration: the Terraform and AWS rule sets and the enabled rules (required version and providers, documented and typed variables and outputs, naming). |
+| `.claude/agents/terra-ai-engineer.md` | The project's assistant for Claude Code: knows how modules, rules, reviewer code and docs are built here. It proposes and waits for approval, never runs commands, and gives you the git commands to run. |
+| `tools/pyproject.toml` | Settings for `ruff` and `mypy`, run on the reviewer's Python by the `python` job of every PR. |
 | `.gitignore` | Keeps out state, plans, the Python environment, the `backend.tf` the pipeline generates and editor history. |
 
 ## `.github/workflows/`: the pipeline
@@ -27,7 +29,7 @@ A Python package that the workflows run: each step calls its own file, for examp
 dependency is PyYAML. Its code quality is enforced on every PR by the `python` job: `ruff` (errors, imports, likely bugs) and `mypy` (types), configured in `tools/pyproject.toml`. Each folder is one concern:
 
 ```
-git_diff → what changed  ─►  terraform/ → what it affects  ─►  rules/ → which rules it breaks
+lib/git_diff → what changed  ─►  terraform/ → what it affects  ─►  rules/ → which rules it breaks
                                                                     │
                           review/ → verdict and PR comment  ◄───────┘          ai/ → optional summary
 ```
@@ -88,7 +90,7 @@ of the step you see in GitHub.
 | --- | --- | --- |
 | `discover_roots.py` | affected configurations | The roots a PR affects and its target branch owns: gives the workflow the matrix for the plan jobs, how many there are, and the list with the reasons. |
 | `select_roots.py` | which roots (terraform.yml) | The roots a `terraform.yml` run acts on: those a push affected, or the one asked for. |
-| `contract_check.py` | repository contract | The rules that read the code; exits with an error on any High or Critical finding. |
+| `contract_check.py` | repository contract | The rules that read the code, over the whole repository; fails on any High or Critical finding. |
 | `terraform_validate.py` | terraform validate | `terraform validate` in the modules and roots a PR affects, with one shared provider cache. |
 | `terraform_tflint.py` | TFLint | TFLint, with the repository's `.tflint.hcl`, on the affected modules. |
 | `terraform_checkov.py` | Checkov | Checkov on the affected modules; publishes the number of findings. |
@@ -97,7 +99,7 @@ of the step you see in GitHub.
 | `terraform_show_json.py` | terraform show -json | The saved plan as JSON (`terraform show -json`) reduced to a sanitized summary the review reads. The raw plan is never written to disk. |
 | `infracost_estimate.py` | infracost | The Infracost estimate of the plan, written to `cost-<slug>.json`. It decides by itself whether to run (only a plan, only with an Infracost key) and installs the pinned Infracost release, verifying its checksum, if the machine does not have it. |
 | `terraform_apply.py` | terraform apply | Applies the saved plan. Does nothing when the run is only a plan. |
-| `pr_review.py` | PR comment | Builds the review and the text of the comment. |
+| `pr_review.py` | PR comment | Collects the check results, plans and costs, runs the review and writes the comment text. Never fails the job. |
 | `pr_comment.py` | PR comment | Creates or updates the single PR comment through the GitHub API. |
 
 ### `ai/`: the optional layer
@@ -147,7 +149,7 @@ A web tier in a VPC: an Application Load Balancer in front of an Auto Scaling Gr
 | `outputs.tf` | The values the root exposes (DNS name, endpoints, secret ARN, summary). |
 | `inputs.yaml` | The values of this root: tags, network, security rules, database, load balancer, compute. The only file that differs between dev and prod in intent. |
 | `web-user-data.sh.tftpl` | The boot script of the web instances (a placeholder web server with `/health`). |
-| `infra-example/README.md` | The example's own notes: inputs reference and design notes. |
+| `README.md` (in `infra-example/`) | The example's own notes: layout, `inputs.yaml` reference, what is checked and design notes. |
 
 ## `docs/`
 
