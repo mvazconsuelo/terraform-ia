@@ -88,7 +88,7 @@ def ground_text(
 
 def evidence_corpus(evidence: Dict[str, Any]) -> str:
     """Everything the model was shown, as one string. What the model cites is checked against this."""
-    parts = [item.get("path", "") + "\n" + item.get("content", "") for item in evidence["changed_files"]]
+    parts = [item.get("path", "") for item in evidence["changed_files"]]
     parts += [
         json.dumps(evidence["deterministic_findings"]),
         json.dumps(evidence.get("plans") or {}),

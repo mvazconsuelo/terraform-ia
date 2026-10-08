@@ -22,6 +22,19 @@ jobs:
           terraform_version: "~> 1.16.0"
       - run: terraform fmt -check -recursive
 
+  python:
+    name: python (ruff, mypy)
+    if: github.base_ref != github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml types-PyYAML ruff==0.16.10 mypy==1.19.1
+      - run: cd tools && ruff check reviewer
+      - run: cd tools && mypy reviewer
+
   # Which Terraform root configurations this PR affects (edited, or using a changed shared module or file). Everything
   # below that touches a configuration runs only for these; the others are not initialised, planned or validated.
   discover:
@@ -42,7 +55,7 @@ jobs:
         env:
           BASE: origin/${{ github.base_ref }}
           BASE_REF: ${{ github.base_ref }}
-        run: PYTHONPATH=tools python -m reviewer.ci.discover_roots --base "$BASE" --branch "$BASE_REF" --github
+        run: PYTHONPATH=tools python -m reviewer.ci.discover_roots --base "$BASE" --branch "$BASE_REF"
 
   validate:
     name: terraform validate

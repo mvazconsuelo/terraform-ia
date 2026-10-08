@@ -106,6 +106,7 @@ def _mask(text: str) -> Tuple[str, str]:
         elif text.startswith("<<", i) and HEREDOC_RE.match(text, i):
             # A heredoc: its lines are text, not code, up to a line that holds only the marker (EOT).
             heredoc = HEREDOC_RE.match(text, i)
+            assert heredoc is not None   # the `elif` above just matched it
             closing_line = re.compile(r"^[ \t]*%s[ \t]*$" % re.escape(heredoc.group(1)), re.MULTILINE).search(text, heredoc.end())
             end = closing_line.end() if closing_line else length
             blank_out(without_comments, heredoc.end(), end)

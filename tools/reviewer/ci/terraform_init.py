@@ -10,15 +10,15 @@ from __future__ import annotations
 
 import glob
 import os
-import sys
 import re
+import sys
 from typing import Dict, Optional
 
 import yaml
 
 from ..aws import account
+from ..lib.github_actions import branch_of, fail
 from ..terraform.run_terraform import run_terraform
-from .github_actions import branch_of, fail
 
 
 def _ensure_backend_block(folder: str) -> None:
@@ -36,13 +36,13 @@ def _ensure_backend_block(folder: str) -> None:
 
 def init_step(env: Optional[Dict[str, str]] = None) -> int:
     """`terraform init` of one root against the S3 state bucket. Reads ROOT, INPUT_BRANCH or REF_NAME, AWS_REGION and the branch key variables."""
-    env = os.environ if env is None else env
+    env = dict(os.environ) if env is None else env
     folder, branch, region = env["ROOT"], branch_of(env), env.get("AWS_REGION", "")
 
     # 1. the keys
     aws_env, error = account.session(env, branch)
-    if error:
-        return fail(error)
+    if aws_env is None or error:
+        return fail(error or "No AWS session.")
 
     # 2. the account guard
     target = account.target_for(branch)

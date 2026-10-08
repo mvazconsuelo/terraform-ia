@@ -60,7 +60,7 @@ Every rule, with its severity and the function that implements it, is in [The ch
 
 ## AI boundary
 
-Off by default (`ai.enabled`). It receives one sanitized payload (verdict, affected roots, checks, plan, replacements, cost, findings, changed files, PR text; never state or credentials). The files it reads are limited: sensitive types (state, keys, `.env`, tfvars) are always skipped, and so is whatever the repository lists in `.geminiignore` and returns one text validated against `ai/schema.json`. Every Terraform address, file path and dollar amount in it is checked against the evidence and replaced by `<unverified …>` if it cannot be verified. No tools, no filesystem, no AWS or GitHub access. If it is disabled, errors or the PR is from a fork, the comment says so and everything else is identical.
+Off by default (`ai.enabled`). It receives one sanitized payload (verdict, affected roots, checks, plan, replacements, cost, findings, the names of the changed files (never their contents), PR text; never state or credentials). It never receives source files, only the evidence above, and returns one text validated against `ai/schema.json`. Every Terraform address, file path and dollar amount in it is checked against the evidence and replaced by `<unverified …>` if it cannot be verified. No tools, no filesystem, no AWS or GitHub access. If it is disabled, errors or the PR is from a fork, the comment says so and everything else is identical.
 
 ## Configuration
 

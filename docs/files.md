@@ -13,7 +13,6 @@ Every file and folder in the repository: what it does, what it is for and what i
 | `.terraform-version` | The Terraform version for local tooling (for example tfenv). A change to it makes every root "affected". |
 | `.tflint.hcl` | TFLint configuration: the Terraform and AWS rule sets and the enabled rules (required version and providers, documented and typed variables and outputs, naming). |
 | `.gitignore` | Keeps out state, plans, the Python environment, the `backend.tf` the pipeline generates and editor history. |
-| `.geminiignore` | The files the AI summary must not read when it builds the review (one pattern per line). Secrets and state are always blocked by the code, whatever this file says; this list is for what else the AI does not need. |
 
 ## `.github/workflows/`: the pipeline
 
@@ -25,7 +24,7 @@ Every file and folder in the repository: what it does, what it is for and what i
 ## `tools/reviewer/`: the reviewer
 
 A Python package that the workflows run: each step calls its own file, for example `python -m reviewer.ci.terraform_init`. Its only
-dependency is PyYAML. Each folder is one concern:
+dependency is PyYAML. Its code quality is enforced on every PR by the `python` job: `ruff` (errors, imports, likely bugs) and `mypy` (types), configured in `tools/pyproject.toml`. Each folder is one concern:
 
 ```
 git_diff → what changed  ─►  terraform/ → what it affects  ─►  rules/ → which rules it breaks
@@ -41,7 +40,7 @@ git_diff → what changed  ─►  terraform/ → what it affects  ─►  rules
 | `review/` | The review itself: the verdict and the PR comment. |
 | `infracost/`, `aws/` | Reading the Infracost data; checking which AWS account the keys belong to. |
 | `ai/` | The optional AI summary. |
-| `redact_secrets.py` | Hides credentials in any text, and decides which files the AI must not read: a fixed floor of sensitive types plus the repository's `.geminiignore`. |
+| `lib/` | Helpers every other folder can use, none of them a workflow step: `git_diff.py` (the files a PR changes: `git diff base...HEAD`, committed changes only), `github_actions.py` (writes `$GITHUB_OUTPUT` and `$GITHUB_STEP_SUMMARY`, reports errors, tells the mode and the branch) and `redact_secrets.py` (hides credentials in the text and values the AI receives). |
 
 ### `terraform/`: understanding the Terraform code and the plan
 
@@ -70,7 +69,7 @@ The list of rules is in [The checks](checks.md).
 | --- | --- |
 | `finding.py` | The shape of a finding (severity, evidence, file, line, rule...) that every rule returns, and the severity order. It is the form a rule fills in to report a problem; it does not say how modules must be built (that is the [module standard](module-standard.md)). |
 | `run_review.py` | One review, in order: affected roots, findings, the deterministic verdict and the optional AI summary. |
-| `markdown_report.py` | Builds the PR comment in Markdown from a review result. |
+| `render_pr_comment.py` | Builds the text of the PR comment (Markdown) from a review result: seven sections, from the AI summary to the decision. |
 
 ### `infracost/` and `aws/`: the cost data and the AWS account
 
@@ -87,8 +86,7 @@ of the step you see in GitHub.
 
 | File | Step | What it does |
 | --- | --- | --- |
-| `git_diff.py` | (the starting point) | `git diff base...HEAD`: the files a PR changes, the first thing every other step asks. Only committed changes count. |
-| `discover_roots.py` | affected configurations | The roots (or modules) a PR affects, for the target branch; also listed on screen when you run it by hand. |
+| `discover_roots.py` | affected configurations | The roots a PR affects and its target branch owns: gives the workflow the matrix for the plan jobs, how many there are, and the list with the reasons. |
 | `select_roots.py` | which roots (terraform.yml) | The roots a `terraform.yml` run acts on: those a push affected, or the one asked for. |
 | `contract_check.py` | repository contract | The rules that read the code; exits with an error on any High or Critical finding. |
 | `terraform_validate.py` | terraform validate | `terraform validate` in the modules and roots a PR affects, with one shared provider cache. |
@@ -100,9 +98,7 @@ of the step you see in GitHub.
 | `infracost_estimate.py` | infracost | The Infracost estimate of the plan, written to `cost-<slug>.json`. It decides by itself whether to run (only a plan, only with an Infracost key) and installs the pinned Infracost release, verifying its checksum, if the machine does not have it. |
 | `terraform_apply.py` | terraform apply | Applies the saved plan. Does nothing when the run is only a plan. |
 | `pr_review.py` | PR comment | Builds the review and the text of the comment. |
-| `local_review.py` | (by hand) | A full review from your machine, with the plan, cost and check results you give it |
 | `pr_comment.py` | PR comment | Creates or updates the single PR comment through the GitHub API. |
-| `github_actions.py` | (helpers) | Writes to the files GitHub Actions reads (`$GITHUB_OUTPUT`, `$GITHUB_STEP_SUMMARY`), reports errors, and works out whether a run is a plan or an apply and which branch it belongs to. |
 
 ### `ai/`: the optional layer
 

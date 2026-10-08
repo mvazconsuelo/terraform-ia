@@ -8,12 +8,12 @@ import sys
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
 
-from .git_diff import git_changed_files
 from ..infracost.read_infracost_json import load_infracost
-from ..review.markdown_report import MARKER, render_markdown
-from ..review.run_review import ai_requested, review
+from ..lib.git_diff import git_changed_files
+from ..lib.github_actions import append_to_github_file
+from ..review.render_pr_comment import COMMENT_MARKER, render_pr_comment
+from ..review.run_review import ai_enabled, review
 from ..terraform.read_plan_json import load_plan
-from .github_actions import append_to_github_file
 
 
 def _check_results(env: Dict[str, str]) -> Dict[str, str]:
@@ -59,14 +59,14 @@ def pr_review(env: Optional[Dict[str, str]] = None, plans_dir: str = "plans", ou
     PR_BODY (the author's text), IS_FORK, the R_* results of the earlier jobs, and MATRIX (the affected roots).
     The earlier jobs are the gate, so this always exits 0; if the reviewer itself crashes, the comment says so instead of
     disappearing, and the traceback stays in the job log."""
-    env = os.environ if env is None else env
+    env = dict(os.environ) if env is None else env
     repo_root = os.path.abspath(".")
     target_branch = env.get("BASE_REF", "")
 
     try:
         plans, costs = _plans_and_costs(env, plans_dir)
         # The AI is optional: off unless common.yaml enables it, and never for forks (they get no secrets).
-        use_ai = ai_requested(argparse.Namespace(no_ai=env.get("IS_FORK") == "true", ai=False), repo_root)
+        use_ai = env.get("IS_FORK") != "true" and ai_enabled(repo_root)
         result = review(
             repo_root,
             git_changed_files(repo_root, env["BASE"]),
@@ -78,11 +78,11 @@ def pr_review(env: Optional[Dict[str, str]] = None, plans_dir: str = "plans", ou
         )
         with open(out, "w", encoding="utf-8") as handle:
             json.dump(result, handle, indent=2)
-        comment = render_markdown(result)
+        comment = render_pr_comment(result)
         print("decision: {} · risk: {}".format(result["decision"], result["risk"]))
     except Exception:
         traceback.print_exc()
-        comment = "{}\n# Infrastructure Review\n\n⚠️ The reviewer failed to run. See the `review` job log.\n".format(MARKER)
+        comment = "{}\n# Infrastructure Review\n\n⚠️ The reviewer failed to run. See the `review` job log.\n".format(COMMENT_MARKER)
 
     with open(markdown, "w", encoding="utf-8") as handle:
         handle.write(comment)

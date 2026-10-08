@@ -3,7 +3,7 @@
 Gemini only interprets evidence that code already produced. Its answer is text for the PR comment: it carries no findings
 and no decision, and it can never change the pass/fail verdict. The steps, in order:
 
-  1. `build_evidence`  gather what the model may see, sanitized and within a size budget;
+  1. `build_evidence`  gather what the model may see: the evidence of the review, never the source files;
   2. `build_payload`   arrange it, together with the final verdict, into the one JSON document the model receives;
   3. `ask`             send it and validate the answer against schema.json (one retry if the answer is invalid);
   4. `review`          check every address, file and price in the answer against the evidence (see grounding.py).
@@ -11,11 +11,10 @@ and no decision, and it can never change the pass/fail verdict. The steps, in or
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..redact_secrets import blocked_reason, sanitize_text, sanitize_tree
+from ..lib.redact_secrets import sanitize_text, sanitize_tree
 from ..review.finding import Finding
 from ..terraform.terraform_map import Repo
 from .client import AIClient, AIError
@@ -25,11 +24,7 @@ HERE = Path(__file__).resolve().parent
 SCHEMA_PATH = HERE / "schema.json"       # the contract of the answer
 PROMPT_PATH = HERE / "prompt.md"         # the instructions given to the model
 
-# Size limits, so the payload stays small and cheap.
-MAX_FILE_BYTES = 40_000
-MAX_TOTAL_BYTES = 250_000
-MAX_PR_BODY = 4_000
-TEXT_SUFFIXES = (".tf", ".hcl", ".yaml", ".yml", ".md", ".json", ".tftpl")    # only text files are sent
+MAX_PR_BODY = 4_000      # the PR description is cut here, so the payload stays small
 
 
 class AIReviewError(AIError):
@@ -49,40 +44,6 @@ def load_prompt() -> str:
 # ----------------------------------------------------------------------------------------------------------------
 # 1. Evidence: only what the review needs, sanitized. No repository dump, no state, no credentials.
 # ----------------------------------------------------------------------------------------------------------------
-def _read_changed_files(root: str, changed: List[Dict[str, str]]):
-    """Read the changed files the model may see. Returns (files with their sanitized contents, notes on the skipped ones)."""
-    files: List[Dict[str, Any]] = []
-    skipped: List[str] = []
-    bytes_used = 0
-
-    for entry in changed:
-        path = entry["path"]
-        reason = blocked_reason(path, root)          # a sensitive file type, or listed in .geminiignore
-        if reason:
-            skipped.append("{} ({})".format(path, reason))
-            continue
-        if entry["status"] == "deleted":
-            files.append({"path": path, "status": "deleted"})        # nothing to read; the model only learns it is gone
-            continue
-        if not path.endswith(TEXT_SUFFIXES):
-            skipped.append(path + " (non-text)")
-            continue
-        full_path = os.path.join(root, path)
-        if not os.path.isfile(full_path):
-            continue
-
-        with open(full_path, encoding="utf-8", errors="replace") as handle:
-            text = handle.read()
-        truncated = len(text) > MAX_FILE_BYTES
-        text = sanitize_text(text[:MAX_FILE_BYTES])
-        if bytes_used + len(text) > MAX_TOTAL_BYTES:
-            skipped.append(path + " (context budget exceeded)")
-            continue
-        bytes_used += len(text)
-        files.append({"path": path, "status": entry["status"], "truncated": truncated, "content": text})
-    return files, skipped
-
-
 def build_evidence(
     root: str,
     changed: List[Dict[str, str]],
@@ -92,10 +53,8 @@ def build_evidence(
     checks: Dict[str, str],
     pr: Optional[Dict[str, str]],
 ) -> Dict[str, Any]:
-    """Collect what the AI may see: sanitized changed files within a size budget, the PR text, checks, findings,
-    plans and costs. Blocked and non-text files are skipped."""
-    files, skipped = _read_changed_files(root, changed)
-
+    """Collect what the AI may see: the list of changed files (path and status, never their contents), the PR text, the
+    checks, the findings, the plans and the costs. The AI reads the evidence the review produced, not the source code."""
     pull_request = None
     if pr and (pr.get("title") or pr.get("body")):
         pull_request = {
@@ -105,8 +64,7 @@ def build_evidence(
     return {
         "pull_request": pull_request,
         "checks": checks or {},
-        "changed_files": files,
-        "skipped_files": skipped,
+        "changed_files": [{"path": item["path"], "status": item.get("status", "modified")} for item in changed],
         "deterministic_findings": [finding.to_dict() for finding in findings],
         "plans": plans or {},
         "costs": costs or {},
@@ -118,7 +76,7 @@ def build_evidence(
 # ----------------------------------------------------------------------------------------------------------------
 def repository_context(rules: List[dict]) -> Dict[str, Any]:
     """What the repository is. The mandatory tags come from the governance rule, the single source of truth."""
-    tags = next((rule.get("mandatory_tags", []) for rule in rules if rule.get("id") == "TAGS-001"), [])
+    tags: List[str] = next((rule.get("mandatory_tags", []) for rule in rules if rule.get("id") == "TAGS-001"), [])
     return {
         "purpose": (
             "Terraform module engineering repository: reusable AWS modules, the Terraform root configurations built from "
