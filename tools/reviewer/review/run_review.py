@@ -138,7 +138,7 @@ def _roots_under_review(repo: Repo, changed: List[Dict[str, str]], branch: Optio
 def _ask_ai(
     use_ai: bool, model: Optional[str], ai_client: Any, root: str, changed: List[Dict[str, str]], findings: List[Finding],
     plans: Dict[str, Any], costs: Dict[str, Any], checks: Dict[str, str], pr: Optional[Dict[str, str]],
-    rules: List[dict], affected: List[Dict[str, Any]], verdict_summary: Dict[str, Any],
+    rules: List[dict], affected: List[Dict[str, Any]], verdict_summary: Dict[str, Any], versions: List[Dict[str, Any]],
 ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
     """Ask the AI for the summary. Returns (summary or None, status).
 
@@ -157,7 +157,7 @@ def _ask_ai(
         status["reason"] = "GEMINI_API_KEY is not set"
         return None, status
     try:
-        analysis = ai_summary.review(client, root, changed, findings, plans, costs, checks, pr, rules, affected, verdict_summary)
+        analysis = ai_summary.review(client, root, changed, findings, plans, costs, checks, pr, rules, affected, verdict_summary, versions)
     except AIError as error:
         status["reason"] = "The AI step failed and was skipped: {}".format(str(error)[:200])
         return None, status
@@ -176,11 +176,14 @@ def review(
     ai_client: Any = None,
     production: bool = False,
     branch: Optional[str] = None,
+    versions: Optional[List[Dict[str, Any]]] = None,
+    jobs: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """One complete review: affected roots, findings, the deterministic verdict and the optional AI summary.
 
     `changed` is the list of {"path", "status"} of the files the PR changes; `plans` and `costs` are keyed by root path;
-    `checks` maps the name of each CI job to its result. Returns the dict that the report and the JSON output are built from."""
+    `checks` maps the name of each CI job to its result;
+    `versions` says if newer Terraform or provider releases exist (information only). Returns the dict the report and the JSON output are built from."""
     plans, costs, checks = plans or {}, costs or {}, checks or {}
     repo, rules = Repo(root), load_rules()
     if production:
@@ -199,7 +202,7 @@ def review(
 
     # 2. The optional AI summary, with the verdict already final.
     verdict_summary = {"risk": risk, "decision": verdict["decision"], "reasons": verdict["reasons"], "target": target}
-    analysis, ai_status = _ask_ai(use_ai, model, ai_client, root, changed, findings, plans, costs, checks, pr, rules, affected, verdict_summary)
+    analysis, ai_status = _ask_ai(use_ai, model, ai_client, root, changed, findings, plans, costs, checks, pr, rules, affected, verdict_summary, versions or [])
 
     return {
         "risk": risk,
@@ -215,6 +218,8 @@ def review(
         "plans": plans,
         "costs": costs,
         "checks": checks,
+        "versions": versions or [],
+        "jobs": jobs or [],
     }
 
 

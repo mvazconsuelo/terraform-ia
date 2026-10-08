@@ -15,6 +15,7 @@ One JSON document with:
 - `plan`: sanitized `terraform plan` summary per root configuration (counts and resource changes). Empty when no plan ran.
 - `replacements`: the resources the plan destroys and recreates, with the attributes that force it.
 - `cost`: the Infracost estimate per root configuration. The only source of prices. Empty when it did not run.
+- `versions`: the Terraform and provider versions the plan used (`in_use`), the latest release (`latest`) and whether it is a `major`, `minor` or `patch` update (`update` is null when up to date or unknown). Information only.
 - `deterministic_findings`: results of the code checks (governance, module standard, security, lifecycle, cost...).
   They are authoritative.
 
@@ -46,7 +47,8 @@ tables, no bullet lists unless a few items really need them. In this order, skip
 3. The plan: how many resources are added, changed and destroyed, and whether anything is replaced (name stateful
    resources and what forces the replacement).
 4. The cost impact, with the figures from `cost`.
-5. The risk and the decision as given, and the reason in one sentence. End with a sentence beginning "**Overall
+5. If `versions` shows a newer release, one short sentence with the version numbers; a major update deserves a mention that it may bring breaking changes. Never write links or URLs: the comment already has them.
+6. The risk and the decision as given, and the reason in one sentence. End with a sentence beginning "**Overall
    assessment:**".
 Use `**bold**` for the key numbers and `` `code` `` for resources, files and paths.
 
