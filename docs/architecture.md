@@ -1,6 +1,6 @@
 # How it works
 
-[← README](../README.md) · English · [Español](es/architecture.md)
+English · [Español](es/architecture.md)
 
 ![Terraform-ia architecture](images/architecture.svg)
 
@@ -91,3 +91,7 @@ Every file and what it is for: [What each file is](files.md). Every rule: [The c
 - Production means the repository's default branch.
 - There are no unit tests for modules or for the reviewer: correctness rests on `validate`, the contract, the plan and the preconditions. The reviewer's Python is checked with ruff and mypy on every PR.
 - The tag check on planned resources is not shown in the comment; tags are enforced on the code by `TAGS-001`.
+
+---
+
+[← Previous: Setup](install.md) · [README](../README.md) · [Next: What each file is →](files.md)

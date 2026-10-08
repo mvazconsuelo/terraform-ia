@@ -1,6 +1,6 @@
 # The checks
 
-[← README](../README.md) · English · [Español](es/checks.md)
+English · [Español](es/checks.md)
 
 Every rule the reviewer enforces, in one place. The catalog itself is [`tools/reviewer/rules/rules.yaml`](../tools/reviewer/rules/rules.yaml): this table mirrors it.
 
@@ -52,3 +52,7 @@ A rule has an **ID** (`FAMILY-NUMBER`), a **severity**, and a **function** that 
 ## What is deliberately not a rule
 
 `terraform fmt` and `validate`, TFLint and Checkov are the authority for formatting, syntax, lint and generic security, and Infracost for prices. The rules above are only what those tools cannot know: module boundaries, naming, mandatory tags, root layout, and the correlation of the plan and the cost with this repository's own standards.
+
+---
+
+[← Previous: What each file is](files.md) · [README](../README.md) · [Next: Module standard →](module-standard.md)

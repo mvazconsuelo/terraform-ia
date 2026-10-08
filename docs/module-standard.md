@@ -1,6 +1,6 @@
 # Module standard
 
-[← README](../README.md) · English · [Español](es/module-standard.md)
+English · [Español](es/module-standard.md)
 
 The contract every module in `modules/` follows. Rule IDs refer to [`tools/reviewer/rules/rules.yaml`](../tools/reviewer/rules/rules.yaml).
 
@@ -47,8 +47,17 @@ last resort and commented; no `local-exec` or `null_resource` unless unavoidable
 **Lifecycle**: stateful resources expose a protection strategy (deletion protection, `force_destroy = false`); every
 `ignore_changes` is commented with the system that owns the attribute; the README documents which inputs force replacement.
 
-**Documentation**: each module README has, in order: purpose and non-goals, usage, resources and which are taggable, inputs
-and outputs, mandatory tags, lifecycle notes (what forces replacement), cost notes.
+**Documentation**: each module README is short and has these sections, in this order. The model to copy is
+[`modules/api-gateway/README.md`](../modules/api-gateway/README.md).
+- *Title and purpose*: one line on what it builds, and a line of **non-goals**.
+- *Usage*: one realistic `module` block, no more.
+- *Resources and tags*: the resources it creates, which of them are taggable and tagged, and the mandatory tags.
+- *Inputs*: the names that matter, grouped, with a pointer to `variables.tf` for types, defaults and validations. No generated tables.
+- *Outputs*: the names.
+- *Lifecycle*: what forces a replacement, what is stateful, what is protected.
+- *Cost*: what drives the bill.
+
+Every module is also listed, with a link to its README, in the *Modules* table of the main [README](../README.md).
 
 **Maintainability**: one responsibility per module (split when two lifecycles are mixed); no copy-pasted logic between modules;
 deprecate before removing.
@@ -75,3 +84,6 @@ The rest of the standard (documented variables and outputs, bounded provider ver
 `terraform fmt`/`validate`, which are the authority for it; the style guidance (`for_each` over `count`, `moved` blocks, comments on
 `ignore_changes`) is for the human reviewer.
 
+---
+
+[← Previous: The checks](checks.md) · [README](../README.md)

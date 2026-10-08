@@ -72,8 +72,13 @@ domain folder. Then propose, following `docs/module-standard.md`:
   Auto Scaling Groups use `tag` blocks with `propagate_at_launch`.
 - **Style:** `for_each` over `count`; `moved` blocks for renames; commented `ignore_changes`; stateful resources expose a protection
   strategy; secrets `sensitive = true`; no providers configured inside a module; no calls to modules of another domain.
-- **README order:** purpose and non-goals, usage, resources (which are taggable), inputs and outputs, mandatory tags, lifecycle
-  notes (what forces replacement), cost notes.
+- **README:** short, never a generated registry page. Copy the structure of `modules/api-gateway/README.md` exactly: `# modules/<name>`,
+  one line of purpose and one of **Non-goals**, then `## Usage` (one realistic `module` block), `## Resources and tags` (resources, which
+  are taggable, the mandatory tags), `## Inputs` (the names that matter, grouped, and "see variables.tf for types, defaults and
+  validations"), `## Outputs` (names), `## Lifecycle` (what forces replacement, what is stateful or protected) and `## Cost` (what drives
+  the bill). Read that file before writing a new module README.
+- **Index:** every module must appear, with a link to its README, in the *Modules* table of `README.md` and `README.es.md` (and in the
+  module tables of `docs/files.md` and `docs/es/files.md`). Adding, renaming or removing a module means updating those four places.
 
 ## How to adjust reviewer code or a rule
 

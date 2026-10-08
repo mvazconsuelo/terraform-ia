@@ -1,6 +1,6 @@
 # Los checks
 
-[← README](../../README.es.md) · [English](../checks.md) · Español
+[English](../checks.md) · Español
 
 Todas las reglas que aplica el reviewer, en un solo lugar. El catálogo es [`tools/reviewer/rules/rules.yaml`](../../tools/reviewer/rules/rules.yaml): esta tabla lo refleja.
 
@@ -52,3 +52,7 @@ Una regla tiene un **ID** (`FAMILIA-NÚMERO`), una **severidad** y una **funció
 ## Qué no es una regla a propósito
 
 `terraform fmt` y `validate`, TFLint y Checkov son la autoridad en formato, sintaxis, lint y seguridad genérica, e Infracost en precios. Las reglas de arriba son solo lo que esas herramientas no pueden saber: límites de módulos, nombres, tags obligatorios, estructura de raíces y la correlación del plan y el costo con los estándares de este repositorio.
+
+---
+
+[← Anterior: Qué es cada archivo](files.md) · [README](../../README.es.md) · [Siguiente: Estándar de módulos →](module-standard.md)

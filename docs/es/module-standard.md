@@ -1,6 +1,6 @@
 # Estándar de módulos
 
-[← README](../../README.es.md) · [English](../module-standard.md) · Español
+[English](../module-standard.md) · Español
 
 El contrato que sigue cada módulo de `modules/`. Los IDs de regla se refieren a [`tools/reviewer/rules/rules.yaml`](../../tools/reviewer/rules/rules.yaml).
 
@@ -47,8 +47,17 @@ opcionales o repetidos; sin cuentas, regiones ni zonas fijas en el código; nunc
 **Ciclo de vida**: los recursos con estado exponen una estrategia de protección (protección contra borrado, `force_destroy = false`);
 cada `ignore_changes` lleva un comentario con el sistema dueño del atributo; el README documenta qué entradas fuerzan un reemplazo.
 
-**Documentación**: el README de cada módulo tiene, en orden: propósito y no-objetivos, uso, recursos y cuáles admiten tags, entradas y
-salidas, tags obligatorios, notas de ciclo de vida (qué fuerza un reemplazo), notas de costo.
+**Documentación**: el README de cada módulo es corto y tiene estas secciones, en este orden. El modelo a copiar es
+[`modules/api-gateway/README.md`](../../modules/api-gateway/README.md).
+- *Título y propósito*: una línea de qué construye y una línea de **no-objetivos**.
+- *Usage*: un bloque `module` realista, nada más.
+- *Resources and tags*: los recursos que crea, cuáles admiten tags y los llevan, y los tags obligatorios.
+- *Inputs*: los nombres que importan, agrupados, con una referencia a `variables.tf` para tipos, valores por defecto y validaciones. Sin tablas generadas.
+- *Outputs*: los nombres.
+- *Lifecycle*: qué fuerza un reemplazo, qué tiene estado y qué está protegido.
+- *Cost*: qué hace subir la factura.
+
+Además, cada módulo figura, con un enlace a su README, en la tabla *Módulos* del [README](../../README.es.md) principal.
 
 **Mantenibilidad**: una responsabilidad por módulo (sepáralo cuando se mezclan dos ciclos de vida); sin lógica copiada entre módulos;
 depreca antes de eliminar.
@@ -74,3 +83,7 @@ El estándar de arriba es el contrato en palabras. Estas son las partes que el r
 El resto del estándar (variables y outputs documentados, versiones acotadas de providers, formato) lo comprueban TFLint y
 `terraform fmt`/`validate`, que son la autoridad en esos puntos; las pautas de estilo (`for_each` en lugar de `count`, bloques `moved`,
 comentarios en `ignore_changes`) son para el revisor humano.
+
+---
+
+[← Anterior: Los checks](checks.md) · [README](../../README.es.md)
