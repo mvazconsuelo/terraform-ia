@@ -23,7 +23,7 @@ A Terraform platform: a library of reusable AWS modules, the root configurations
 - finds **which root configurations a change affects** (including the ones that only use a changed shared module) and runs Terraform only for those,
 - plans, estimates cost and checks the change against the repository's own contract,
 - **decides pass or fail with code**, and optionally has an AI write a plain-language summary of the evidence,
-- applies on merge, with **`develop` and `main` mapped to separate AWS accounts**.
+- deploys only when you ask (a manual run; merging never touches AWS), with **`develop` and `main` mapped to separate AWS accounts**.
 
 No folder names are assumed: it works the same for `infra/web`, `terraform/networking` or `environments/dev`.
 
@@ -47,7 +47,7 @@ No folder names are assumed: it works the same for `infra/web`, `terraform/netwo
 To run the pipeline on your own repository: [Setup](docs/install.md).
 
 > [!NOTE]
-> Plans, checks and the PR comment have run on GitHub. `terraform apply` on merge and the AI summary have not been validated end to end yet.
+> Plans, checks and the PR comment have run on GitHub. `terraform apply` (manual) has not been validated end to end yet.
 
 <details>
 <summary><b>Repository layout</b></summary>

@@ -40,7 +40,7 @@ Una regla tiene un **ID** (`FAMILIA-NÚMERO`), una **severidad** y una **funció
 
 ## Cómo una regla se convierte en veredicto
 
-`REQUEST_CHANGES` cuando un hallazgo confirmado es **High** o **Critical**, o cuando falló un check externo (`terraform fmt`, `validate`, TFLint, el contrato del repositorio). Checkov corre con `--soft-fail`: sus hallazgos aparecen como advertencia y todavía no bloquean. Todo lo demás es `PASS`; las severidades menores igual se listan en el comentario. `PLAN-001` es Critical en una raíz protegida y en todas las raíces de un PR hacia producción.
+`REQUEST_CHANGES` cuando un hallazgo confirmado es **High** o **Critical**, o cuando falló un check externo (`terraform fmt`, los checks de Python (ruff, mypy), `validate`, TFLint, el contrato del repositorio). Checkov corre con `--soft-fail`: sus hallazgos aparecen como advertencia y todavía no bloquean. Todo lo demás es `PASS`; las severidades menores igual se listan en el comentario. `PLAN-001` es Critical en una raíz protegida y en todas las raíces de un PR hacia producción.
 
 ## Agregar una regla
 

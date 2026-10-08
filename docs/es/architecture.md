@@ -36,7 +36,7 @@ Los `*.md` no afectan nada. Las raíces no afectadas nunca se inicializan, plani
 | `main` (producción) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | `terraform.accounts.main` |
 | `develop` y cualquier otra rama | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | `terraform.accounts.develop` |
 
-La rama elige las llaves (la rama destino en un PR, la rama del push en un push). Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y la compara con `terraform.accounts`; si no coincide, falta un secret o falta un id, la ejecución se detiene antes de tocar nada. `terraform.deploy.<rama>` lista las raíces que cada rama puede planificar, revisar y aplicar, así que un push a `develop` nunca toca raíces de producción aunque compartan módulos.
+La rama elige las llaves (la rama destino en un PR, la rama seleccionada en una ejecución manual). Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y la compara con `terraform.accounts`; si no coincide, falta un secret o falta un id, la ejecución se detiene antes de tocar nada. `terraform.deploy.<rama>` lista las raíces que cada rama puede planificar, revisar y aplicar, así que una ejecución en `develop` nunca toca raíces de producción aunque compartan módulos.
 
 ## State
 
@@ -46,15 +46,15 @@ Un state por raíz: clave `<ruta de la raíz>/terraform.tfstate` en el bucket `<
 
 **`pull-request.yml`**: `discover` → `fmt` · `python` (ruff, mypy) · `validate` · `tflint` · `checkov` (módulos afectados) · `contract` → `plan` por cada raíz afectada (llama a `terraform.yml`, solo lectura) → `review` (comentario). Un PR hacia la rama por defecto (producción) omite esos seis checks, que ya pasaron en el PR hacia `develop`, ejecuta plan, costo y revisión con las llaves de producción, y marca todas las raíces como protegidas. Los PR de forks no reciben secrets ni IA.
 
-**`terraform.yml`**: lo llaman los PR para un plan de solo lectura; en un push a `develop` o `main` descubre las raíces que ese push afectó para esa rama y ejecuta `init` → `plan` → `apply` en cada una, de a una; también se puede ejecutar a mano con `gh workflow run`.
+**`terraform.yml`**: lo llaman los PR para un plan de solo lectura, y se ejecuta a mano para planificar o aplicar una raíz (`gh workflow run`). **Fusionar un pull request nunca toca AWS**: desplegar es siempre una ejecución manual y explícita.
 
 ## El reviewer
 
 `tools/reviewer`: hallazgos de los checks del contrato sobre el código (`rules/rules.yaml` + `rules/code_rules.py`) y de los checks sobre el plan y el costo; luego:
 
-- **Veredicto:** `REQUEST_CHANGES` cuando un hallazgo confirmado es HIGH o CRITICAL o falló un check externo; si no, `PASS`. El riesgo es la mayor severidad encontrada. Un check omitido no es una falla.
+- **Veredicto:** `REQUEST_CHANGES` cuando un hallazgo confirmado es HIGH o CRITICAL o falló un check externo (fmt, ruff y mypy, validate, TFLint, el contrato del repositorio); si no, `PASS`. Por ahora Checkov solo avisa. El riesgo es la mayor severidad encontrada. Un check omitido no es una falla.
 - **`PLAN-001`:** un plan que destruye o reemplaza un recurso con estado es CRITICAL en una raíz protegida (todas las raíces en un PR hacia producción) y HIGH en el resto.
-- **Comentario:** uno por PR, actualizado en el lugar. El encabezado muestra el riesgo, la decisión y el ambiente; luego nueve secciones: resumen de IA con Gemini (opcional), configuraciones afectadas, checks, plan de Terraform (con los reemplazos), costo, versiones, hallazgos, decisión y una tabla con un enlace a cada job del workflow de la ejecución.
+- **Comentario:** uno por PR, actualizado en el lugar. El encabezado es un recuadro de color (verde para PASS, rojo o amarillo para REQUEST_CHANGES) con la decisión y el riesgo, y una tabla con el ambiente, la cuenta AWS, el commit revisado y el enlace a la ejecución; luego ocho secciones: resumen de IA con Gemini, configuraciones afectadas, checks, plan de Terraform (con los reemplazos), costo, versiones, reglas del repositorio y decisión. El nombre de cada check y el plan de cada raíz enlazan al log del job que los ejecutó.
 
 - **Versiones:** las versiones de Terraform y de providers que usó el plan, frente a las últimas publicadas, con un enlace a lo que cambió. Solo informa; nunca cambia un archivo ni afecta la decisión. Si los registros no responden, la sección lo indica.
 

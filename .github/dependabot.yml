@@ -1,0 +1,13 @@
+# Keeps the GitHub Actions the workflows use up to date. Dependabot opens a pull request per update; the usual checks run on it.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    labels: [dependencies]
+    commit-message:
+      prefix: "ci"

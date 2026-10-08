@@ -23,8 +23,8 @@ def fail(message: str) -> int:
 
 
 def mode_of(env: Dict[str, str]) -> str:
-    """What this run does: "plan" or "apply". A manual or called run says so (INPUT_MODE); a push has no input, so it applies."""
-    return env.get("INPUT_MODE") or "apply"
+    """What this run does: "plan" or "apply". Every run says so (INPUT_MODE); if one does not, it only plans."""
+    return env.get("INPUT_MODE") or "plan"
 
 
 def branch_of(env: Dict[str, str]) -> str:

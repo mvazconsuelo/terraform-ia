@@ -14,6 +14,8 @@ Cada archivo y carpeta del repositorio: qué hace, para qué sirve y qué repres
 | `.tflint.hcl` | Configuración de TFLint: los conjuntos de reglas de Terraform y AWS y las reglas activas (versión requerida y providers, variables y outputs documentados y tipados, nombres). |
 | `.claude/agents/terraform-ia-engineer.md` | El asistente del proyecto para Claude Code: sabe cómo se construyen aquí los módulos, las reglas, el código del reviewer y la documentación. Propone y espera tu aprobación, nunca ejecuta comandos y te da los comandos git para que los ejecutes tú. |
 | `tools/pyproject.toml` | Configuración de `ruff` y `mypy`, que el job `python` de cada PR ejecuta sobre el Python del reviewer. |
+| `.github/CODEOWNERS` | Quién revisa qué: GitHub pide la revisión del responsable en cada pull request que toque los workflows, el reviewer, `common.yaml`, los módulos, los ejemplos o la documentación. |
+| `.github/dependabot.yml` | Un pull request semanal que actualiza las GitHub Actions que usan los workflows, agrupadas en uno solo. |
 | `.gitignore` | Deja fuera el state, los planes, el entorno de Python, el `backend.tf` que genera el pipeline y el historial del editor. |
 
 ## `.github/workflows/`: el pipeline
@@ -21,7 +23,7 @@ Cada archivo y carpeta del repositorio: qué hace, para qué sirve y qué repres
 | Archivo | Qué hace |
 | --- | --- |
 | `pull-request.yml` | Se ejecuta en cada pull request. Descubre las raíces y los módulos afectados, ejecuta `fmt`, los checks de Python (ruff, mypy), `validate`, TFLint, Checkov y el contrato del repositorio, pide a `terraform.yml` un plan de solo lectura de cada raíz afectada y arma el comentario de revisión. Un PR hacia producción omite esos seis checks y ejecuta solo plan, costo y revisión. |
-| `terraform.yml` | El único workflow que toca AWS. Para una raíz elige las llaves de la rama, verifica la cuenta, comprueba el bucket de state y ejecuta `init` → `plan` → (`apply`). Lo llaman los PR para un plan, lo dispara un push a `develop` o `main` para un apply, o se inicia a mano. |
+| `terraform.yml` | El único workflow que toca AWS. Para una raíz elige las llaves de la rama, verifica la cuenta, comprueba el bucket de state y ejecuta `init` → `plan` → (`apply`). Lo llaman los PR para un plan, o se inicia a mano para un plan o un apply: fusionar nunca despliega. |
 
 ## `tools/reviewer/`: el reviewer
 
@@ -42,6 +44,7 @@ lib/git_diff → qué cambió  ─►  terraform/ → qué afecta  ─►  rules
 | `review/` | La revisión en sí: el veredicto y el comentario del PR. |
 | `infracost/`, `aws/`, `versions/` | Leer los datos de Infracost; comprobar a qué cuenta AWS pertenecen las llaves; buscar versiones nuevas de Terraform y de los providers. |
 | `ai/` | El resumen opcional de IA. |
+| `chat/` | Un chat en la terminal con Gemini que responde preguntas sobre el proyecto a partir de su documentación (`terminal_chat.py`) y, con `/reviews`, a partir de los comentarios de review de los PR recientes: planes, costos, versiones y hallazgos por fecha (`pr_reviews.py`, se leen con `gh`). `format_terminal.py` da formato a las respuestas (instala `rich` para ver tablas). Solo lectura: sin archivos, comandos ni AWS. Se ejecuta a mano con tu propia `GEMINI_API_KEY`: `PYTHONPATH=tools python -m reviewer.chat.terminal_chat`. |
 | `lib/` | Utilidades que puede usar cualquier carpeta y que no son pasos de workflow: `git_diff.py` (los archivos que cambia un PR: `git diff base...HEAD`, solo cambios confirmados en commits), `github_actions.py` (escribe `$GITHUB_OUTPUT` y `$GITHUB_STEP_SUMMARY`, reporta errores, indica el modo y la rama) `workflow_jobs.py` (los jobs de la ejecución actual con un enlace a cada uno, para el comentario) y `redact_secrets.py` (oculta credenciales en el texto y los valores que recibe la IA). |
 
 ### `terraform/`: entender el código de Terraform y el plan
@@ -71,7 +74,7 @@ La lista de reglas está en [Los checks](checks.md).
 | --- | --- |
 | `finding.py` | La forma de un hallazgo (severidad, evidencia, archivo, línea, regla...) que devuelve cada regla, y el orden de severidades. Es el formulario que una regla llena para reportar un problema; no dice cómo deben construirse los módulos (eso es el [estándar de módulos](module-standard.md)). |
 | `run_review.py` | Una revisión, en orden: raíces afectadas, hallazgos, el veredicto determinista y el resumen opcional de IA. |
-| `render_pr_comment.py` | Construye el texto del comentario del PR (Markdown) a partir del resultado de una revisión: nueve secciones, desde el resumen de IA hasta los enlaces a los jobs del workflow. |
+| `render_pr_comment.py` | Construye el texto del comentario del PR (Markdown) a partir del resultado de una revisión: ocho secciones, desde el resumen de IA hasta la decisión. |
 
 ### `infracost/`, `aws/` y `versions/`: los datos de costo, la cuenta AWS y las versiones
 
@@ -90,7 +93,7 @@ del paso que ves en GitHub.
 | Archivo | Paso | Qué hace |
 | --- | --- | --- |
 | `discover_roots.py` | affected configurations | Las raíces que afecta un PR y que su rama destino posee: entrega al workflow la matriz para los jobs de plan, cuántas son y la lista con los motivos. |
-| `select_roots.py` | which roots (terraform.yml) | Las raíces sobre las que actúa una ejecución de `terraform.yml`: las que afectó un push, o la que se pidió. |
+| `select_roots.py` | which roots (terraform.yml) | La raíz sobre la que actúa una ejecución de `terraform.yml`: la que se pidió (una ejecución manual además debe estar permitida por `terraform.deploy` para su rama). |
 | `contract_check.py` | repository contract | Las reglas que leen el código, sobre todo el repositorio; falla ante cualquier hallazgo High o Critical. |
 | `terraform_validate.py` | terraform validate | `terraform validate` en los módulos y raíces que afecta un PR, con una caché de providers compartida. |
 | `terraform_tflint.py` | TFLint | TFLint, con el `.tflint.hcl` del repositorio, sobre los módulos afectados. |
