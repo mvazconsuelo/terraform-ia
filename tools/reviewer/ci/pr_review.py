@@ -32,7 +32,7 @@ def _check_results(env: Dict[str, str]) -> Dict[str, str]:
     }
     checkov_findings = env.get("R_CHECKOV_FAILED") or "0"
     if env.get("R_CHECKOV") == "success" and checkov_findings != "0":
-        results["Checkov ({} findings, non-blocking)".format(checkov_findings)] = "warning"
+        results["Checkov ({} findings)".format(checkov_findings)] = "warning"
     else:
         results["Checkov"] = env.get("R_CHECKOV", "")
     return {name: status for name, status in results.items() if status}

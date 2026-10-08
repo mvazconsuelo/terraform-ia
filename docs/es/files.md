@@ -14,6 +14,8 @@ Cada archivo y carpeta del repositorio: qué hace, para qué sirve y qué repres
 | `.tflint.hcl` | Configuración de TFLint: los conjuntos de reglas de Terraform y AWS y las reglas activas (versión requerida y providers, variables y outputs documentados y tipados, nombres). |
 | `.claude/agents/terraform-ia-engineer.md` | El asistente del proyecto para Claude Code: sabe cómo se construyen aquí los módulos, las reglas, el código del reviewer y la documentación. Propone y espera tu aprobación, nunca ejecuta comandos y te da los comandos git para que los ejecutes tú. |
 | `tools/pyproject.toml` | Configuración de `ruff` y `mypy`, que el job `python` de cada PR ejecuta sobre el Python del reviewer. |
+| `.github/CODEOWNERS` | Quién revisa qué: GitHub pide la revisión del responsable en cada pull request que toque los workflows, el reviewer, `common.yaml`, los módulos, los ejemplos o la documentación. |
+| `.github/dependabot.yml` | Un pull request semanal que actualiza las GitHub Actions que usan los workflows, agrupadas en uno solo. |
 | `.gitignore` | Deja fuera el state, los planes, el entorno de Python, el `backend.tf` que genera el pipeline y el historial del editor. |
 
 ## `.github/workflows/`: el pipeline

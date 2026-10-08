@@ -1,0 +1,11 @@
+# Who reviews what. GitHub asks these owners for a review on every pull request that touches the paths.
+# Everything that decides what runs, what is deployed or how a change is judged has an owner.
+
+*                      @mvazconsuelo
+
+/.github/              @mvazconsuelo
+/tools/                @mvazconsuelo
+/common.yaml           @mvazconsuelo
+/modules/              @mvazconsuelo
+/infra-example/        @mvazconsuelo
+/docs/                 @mvazconsuelo

@@ -2,14 +2,14 @@
 
 The comment has eight sections, in this order:
 
-  1. AI Gemini summary (optional)  the only text written by a model; with the AI off or failing, the rest is identical;
+  1. AI Gemini summary             the only text written by a model; with the AI off or failing, the rest is identical;
   2. Affected configurations       which Terraform root configurations the PR touches, and why;
   3. Checks                        the result of fmt, validate, TFLint, Checkov and the repository contract;
   4. Terraform plan                what the plan adds, changes, destroys and replaces;
   5. Cost                          the Infracost estimate;
   6. Versions                      the Terraform and provider versions in use, and whether newer ones exist (information only);
-  7. Findings                      what the rules found, with the rules evaluated;
-  8. Decision                      the verdict, and the reasons when it blocks.
+  7. Repository rules              what the rules of rules.yaml found (or that all passed), with the detail of each finding;
+  8. Decision                      the verdict in one line, and what blocks it when it does.
 
 The name of every check, and the plan of every root, link to the log of the job that ran it.
 
@@ -87,11 +87,11 @@ def _without_trailing_blank(lines: List[str]) -> List[str]:
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# 1. AI Gemini summary (optional)
+# 1. AI Gemini summary
 # ----------------------------------------------------------------------------------------------------------------
 def _ai_summary_section(review: Dict[str, Any]) -> List[str]:
     """The AI summary, or the reason it is missing (disabled, or it failed)."""
-    lines = ["## AI Gemini summary (optional)", ""]
+    lines = ["## AI Gemini summary", ""]
     analysis = review.get("ai_analysis")
     status = review.get("ai_status") or {}
 
@@ -322,7 +322,7 @@ def _versions_section(versions: List[Dict[str, Any]]) -> List[str]:
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# 7. Findings
+# 7. Repository rules
 # ----------------------------------------------------------------------------------------------------------------
 def _describe_finding(finding: Dict[str, Any]) -> List[str]:
     """One finding: severity and rule, what is wrong (with where), the evidence and how to fix it."""
@@ -336,18 +336,22 @@ def _describe_finding(finding: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _findings_section(findings: List[Dict[str, Any]], rules_evaluated: Any) -> List[str]:
-    """How many rules ran and were violated, the number of findings per severity, and the detail of each finding."""
-    lines = ["## Findings", ""]
-    violations = [finding for finding in findings if finding.get("rule_id")]
-    if rules_evaluated is not None:
-        lines += ["**Rules evaluated:** {} · **Violated:** {}".format(rules_evaluated, len(violations)), ""]
-    if not findings:
-        return lines + ["✅ **No findings.**"]
+def _repository_rules_section(findings: List[Dict[str, Any]], rules_evaluated: Any) -> List[str]:
+    """What the repository's own rules found: all passed, or how many were violated, by severity, with the detail of each finding.
 
-    lines += ["| Severity | Findings |", "|---|---:|"]
+    Checkov and TFLint report their own findings in the Checks table; this section is only about the rules of `rules.yaml`."""
+    lines = ["## Repository rules", ""]
+    total = "all {}".format(rules_evaluated) if rules_evaluated else "all"
+    if not findings:
+        return lines + ["✅ **{} rules passed** — module standard, mandatory tags, root layout, plan and cost.".format(total.capitalize())]
+
+    violated = len({finding["rule_id"] for finding in findings if finding.get("rule_id")})
+    of_total = " of {}".format(rules_evaluated) if rules_evaluated else ""
+    lines += ["⚠️ **{}{} rules violated**".format(violated, of_total), "", "| Severity | Findings |", "|---|---:|"]
     for severity, label in SEVERITY_ORDER:
-        lines.append("| {} | {} |".format(label, sum(1 for finding in findings if finding["severity"] == severity)))
+        count = sum(1 for finding in findings if finding["severity"] == severity)
+        if count:
+            lines.append("| {} {} | {} |".format(SEVERITY_ICON.get(severity, ""), label, count))
     lines += ["", "### Details", ""]
     for finding in findings:
         lines += _describe_finding(finding)
@@ -358,13 +362,16 @@ def _findings_section(findings: List[Dict[str, Any]], rules_evaluated: Any) -> L
 # 8. Decision
 # ----------------------------------------------------------------------------------------------------------------
 def _decision_section(review: Dict[str, Any]) -> List[str]:
-    """The verdict and, when it blocks, the reasons."""
+    """The verdict in one line: why it passes, or what blocks it; plus the warnings that do not block."""
     reasons = review.get("decision_reasons") or []
-    lines = ["## Review Decision", "", "**{}**".format(review["decision"]), ""]
+    lines = ["## Decision", ""]
     if reasons:
-        lines += ["The deterministic review found blocking issues:", ""] + ["- {}".format(reason) for reason in reasons]
+        lines += ["**❌ REQUEST_CHANGES** — blocked by:", ""] + ["- {}".format(reason) for reason in reasons]
     else:
-        lines.append("The deterministic review found no blocking violations.")
+        lines.append("**✅ PASS** — no High or Critical rule violation and no failed check.")
+    warnings = [name for name, status in (review.get("checks") or {}).items() if status == "warning"]
+    if warnings:
+        lines += ["", "ℹ️ Does not block: " + ", ".join(warnings) + "."]
     return lines
 
 
@@ -407,7 +414,7 @@ def render_pr_comment(review: Dict[str, Any]) -> str:
         _terraform_plan_section(plans, jobs),
         _cost_section(costs),
         _versions_section(review.get("versions", [])),
-        _findings_section(findings, review.get("rules_evaluated")),
+        _repository_rules_section(findings, review.get("rules_evaluated")),
         _decision_section(review),
     ]
 
