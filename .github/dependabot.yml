@@ -1,8 +1,10 @@
-# Keeps the GitHub Actions the workflows use up to date. Dependabot opens a pull request per update; the usual checks run on it.
+# Keeps the GitHub Actions the workflows use up to date. Dependabot opens one pull request into develop; the usual checks run on it.
+# Read it before merging: a major version bump of an action can change how the pipeline behaves.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop     # updates are tried in develop first, never straight into production
     schedule:
       interval: weekly
     groups:
