@@ -66,7 +66,3 @@ module "eks" {
 ## Cost
 
 Control plane hourly fee per cluster (extended support costs more) + CloudWatch Logs ingestion for enabled log types. Nodes are billed separately (`eks/node-group`).
-
-## Testing
-
-`terraform init -backend=false && terraform test` (mock provider, no credentials).

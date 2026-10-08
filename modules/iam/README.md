@@ -35,7 +35,3 @@ Renaming the role replaces it (and breaks anything referencing the old ARN). Cha
 ## Cost
 
 Free.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (uses `mock_provider`; no credentials).

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "AIReview",
-  "description": "Contract of the optional AI summary. Single source of truth: reviewer.ai.reviewer validates the model output against this file.",
+  "description": "Contract of the optional AI summary. Single source of truth: reviewer.ai.summary validates the model output against this file.",
   "type": "object",
   "additionalProperties": false,
   "required": ["summary"],

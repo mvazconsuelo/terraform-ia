@@ -4,7 +4,7 @@ project: shop
 
 backend:
   encrypt: true
-  use_lockfile: true # S3 native lock (Terraform >= 1.10); no DynamoDB table needed
+  use_lockfile: true # S3 native lock (Terraform >= 1.11); no DynamoDB table needed
 
 # Optional AI analysis (Gemini) in the PR comment. Off by default: nothing leaves the repository until you enable it.
 # It also needs the GEMINI_API_KEY secret. The deterministic review (the authority) works the same either way.
@@ -20,7 +20,7 @@ ai:
 #   accounts:   {develop: "<id>", main: "<id>"}  REQUIRED to run the pipeline: the AWS account of each branch's keys
 #   deploy:     {develop: [infra-example/dev/*]}  roots each branch may APPLY on push (globs); PRs still plan everything they affect;
 #                                      a branch with no entry applies every root the push affected
-#   conventions.layout: {roots, files, template_suffixes, identical}   enables rules TF-004 / TF-006
+#   conventions.layout: {roots, files, template_suffixes, identical}   enables rules ROOT-001 / ROOT-002
 terraform:
   accounts: # the AWS account id of each branch's keys; the pipeline stops if the keys belong to another account
     develop: "785995043299"

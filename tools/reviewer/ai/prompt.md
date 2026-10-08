@@ -11,7 +11,7 @@ One JSON document with:
   which modules they use, and `affected_configurations`: the configurations this change touches and why.
 - `pull_request`: the title and description the author wrote (the stated intent). May be null.
 - `changed_files`: sanitized contents of the files the PR changes.
-- `checks`: result of each check (fmt, validate, test, TFLint, Checkov, repository contract): success, failure, skipped, or warning (it reported findings that do not block; never call a warning a clean pass).
+- `checks`: result of each check (fmt, validate, TFLint, Checkov, repository contract): success, failure, skipped, or warning (it reported findings that do not block; never call a warning a clean pass).
 - `plan`: sanitized `terraform plan` summary per root configuration (counts and resource changes). Empty when no plan ran.
 - `replacements`: the resources the plan destroys and recreates, with the attributes that force it.
 - `cost`: the Infracost estimate per root configuration. The only source of prices. Empty when it did not run.
@@ -51,7 +51,7 @@ tables, no bullet lists unless a few items really need them. In this order, skip
 Use `**bold**` for the key numbers and `` `code` `` for resources, files and paths.
 
 Good: "This PR modifies the `infra-example/dev/web-demo` configuration, affecting the database and the load balancer.
-All six checks passed. The plan adds **4 resources** and modifies **2**, with nothing destroyed or replaced. The
+All five checks passed. The plan adds **4 resources** and modifies **2**, with nothing destroyed or replaced. The
 estimated cost increases by **$43.21/month**. **Overall assessment:** no blocking issues were detected."
 Bad: "Looks good." or "Please review carefully." or any price that is not in `cost`.
 

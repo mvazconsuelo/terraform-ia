@@ -40,7 +40,3 @@ Schedule rules only work on the default bus (enforced by a precondition). Renami
 ## Cost
 
 Custom/partner events are billed per million events; scheduled and AWS-service events on the default bus are free.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (uses `mock_provider`; no credentials).

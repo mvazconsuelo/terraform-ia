@@ -36,7 +36,3 @@ Every change creates a new template version and moves `$Default` (`update_defaul
 ## Cost
 
 Free by itself; drives the cost of everything launched from it (instance type, volume size, detailed monitoring).
-
-## Testing
-
-`terraform init -backend=false && terraform test` (mock provider, no credentials).

@@ -38,7 +38,3 @@ module "api" {
 ## Cost
 
 Per-request pricing; VPC Link V2 has no hourly charge itself but the NLB and ENIs it uses do.
-
-## Testing
-
-`terraform init -backend=false && terraform test` (uses `mock_provider`; no credentials).
