@@ -161,7 +161,7 @@ def _ask_ai(
     except AIError as error:
         status["reason"] = "The AI step failed and was skipped: {}".format(str(error)[:200])
         return None, status
-    return analysis, {"requested": True, "executed": True, "reason": None, "model": getattr(client, "model", None)}
+    return analysis, {"requested": True, "executed": True, "reason": None, "model": getattr(client, "model_used", None) or getattr(client, "model", None)}
 
 
 def review(

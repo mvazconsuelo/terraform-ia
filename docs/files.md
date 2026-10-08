@@ -14,6 +14,8 @@ Every file and folder in the repository: what it does, what it is for and what i
 | `.tflint.hcl` | TFLint configuration: the Terraform and AWS rule sets and the enabled rules (required version and providers, documented and typed variables and outputs, naming). |
 | `.claude/agents/terraform-ia-engineer.md` | The project's assistant for Claude Code: knows how modules, rules, reviewer code and docs are built here. It proposes and waits for approval, never runs commands, and gives you the git commands to run. |
 | `tools/pyproject.toml` | Settings for `ruff` and `mypy`, run on the reviewer's Python by the `python` job of every PR. |
+| `.github/CODEOWNERS` | Who reviews what: GitHub requests a review from the owner on every pull request that touches the workflows, the reviewer, `common.yaml`, the modules, the examples or the docs. |
+| `.github/dependabot.yml` | Weekly pull request that updates the GitHub Actions the workflows use, grouped in one. |
 | `.gitignore` | Keeps out state, plans, the Python environment, the `backend.tf` the pipeline generates and editor history. |
 
 ## `.github/workflows/`: the pipeline
@@ -21,7 +23,7 @@ Every file and folder in the repository: what it does, what it is for and what i
 | File | What it does |
 | --- | --- |
 | `pull-request.yml` | Runs on every pull request. Discovers the affected roots and modules, runs `fmt`, the Python checks (ruff, mypy), `validate`, TFLint, Checkov and the repository contract, asks `terraform.yml` for a read-only plan of each affected root, then builds the review comment. A PR into production skips those six checks and runs plan, cost and review only. |
-| `terraform.yml` | The only workflow that touches AWS. For one root it selects the branch's keys, verifies the account, checks the state bucket, then runs `init` → `plan` → (`apply`). Called by PRs for a plan, triggered by a push to `develop` or `main` for an apply, or started by hand. |
+| `terraform.yml` | The only workflow that touches AWS. For one root it selects the branch's keys, verifies the account, checks the state bucket, then runs `init` → `plan` → (`apply`). Called by PRs for a plan, or started by hand for a plan or an apply: merging never deploys. |
 
 ## `tools/reviewer/`: the reviewer
 
@@ -42,7 +44,8 @@ lib/git_diff → what changed  ─►  terraform/ → what it affects  ─►  r
 | `review/` | The review itself: the verdict and the PR comment. |
 | `infracost/`, `aws/`, `versions/` | Reading the Infracost data; checking which AWS account the keys belong to; looking up newer Terraform and provider releases. |
 | `ai/` | The optional AI summary. |
-| `lib/` | Helpers every other folder can use, none of them a workflow step: `git_diff.py` (the files a PR changes: `git diff base...HEAD`, committed changes only), `github_actions.py` (writes `$GITHUB_OUTPUT` and `$GITHUB_STEP_SUMMARY`, reports errors, tells the mode and the branch) `workflow_jobs.py` (the jobs of the current run with a link to each one, for the comment) and `redact_secrets.py` (hides credentials in the text and values the AI receives). |
+| `chat/` | A terminal chat with Gemini that answers questions about the project from its documentation (`terminal_chat.py`) and, with `/reviews`, from the review comments of recent pull requests: plans, costs, versions, findings by date (`pr_reviews.py`, read with `gh`). `format_terminal.py` renders the answers (install `rich` for tables). Read-only: no files, commands or AWS. Run it by hand with your own `GEMINI_API_KEY`: `PYTHONPATH=tools python -m reviewer.chat.terminal_chat`. |
+| `lib/` | Helpers every other folder can use, none of them a workflow step: `git_diff.py` (the files a PR changes: `git diff base...HEAD`, committed changes only), `github_actions.py` (writes `$GITHUB_OUTPUT` and `$GITHUB_STEP_SUMMARY`, reports errors, tells the mode and the branch) `workflow_jobs.py` (the jobs of the current run with a link to each one, so the comment can link to their logs) and `redact_secrets.py` (hides credentials in the text and values the AI receives). |
 
 ### `terraform/`: understanding the Terraform code and the plan
 
@@ -71,7 +74,7 @@ The list of rules is in [The checks](checks.md).
 | --- | --- |
 | `finding.py` | The shape of a finding (severity, evidence, file, line, rule...) that every rule returns, and the severity order. It is the form a rule fills in to report a problem; it does not say how modules must be built (that is the [module standard](module-standard.md)). |
 | `run_review.py` | One review, in order: affected roots, findings, the deterministic verdict and the optional AI summary. |
-| `render_pr_comment.py` | Builds the text of the PR comment (Markdown) from a review result: nine sections, from the AI summary to the links to the workflow jobs. |
+| `render_pr_comment.py` | Builds the text of the PR comment (Markdown) from a review result: eight sections, from the AI summary to the decision. |
 
 ### `infracost/`, `aws/` and `versions/`: the cost data, the AWS account and the releases
 
@@ -90,7 +93,7 @@ of the step you see in GitHub.
 | File | Step | What it does |
 | --- | --- | --- |
 | `discover_roots.py` | affected configurations | The roots a PR affects and its target branch owns: gives the workflow the matrix for the plan jobs, how many there are, and the list with the reasons. |
-| `select_roots.py` | which roots (terraform.yml) | The roots a `terraform.yml` run acts on: those a push affected, or the one asked for. |
+| `select_roots.py` | which roots (terraform.yml) | The root a `terraform.yml` run acts on: the one asked for (a manual run must also be allowed by `terraform.deploy` for its branch). |
 | `contract_check.py` | repository contract | The rules that read the code, over the whole repository; fails on any High or Critical finding. |
 | `terraform_validate.py` | terraform validate | `terraform validate` in the modules and roots a PR affects, with one shared provider cache. |
 | `terraform_tflint.py` | TFLint | TFLint, with the repository's `.tflint.hcl`, on the affected modules. |

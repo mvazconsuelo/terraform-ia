@@ -14,7 +14,7 @@ Un repositorio de GitHub, una o dos cuentas AWS, Terraform ≥ 1.11 (lock nativo
 git switch -c develop && git push -u origin develop
 ```
 
-Protege `main` (pull request obligatorio y status checks requeridos): los apply de producción se ejecutan al hacer merge, así que esa protección es la puerta.
+Protege `main` (pull request obligatorio y status checks requeridos): fusionar nunca toca AWS (desplegar es una ejecución manual), pero esa protección es la puerta de los cambios en `main`.
 
 ## 2. `common.yaml`
 
@@ -29,7 +29,7 @@ terraform:
   accounts:                     # id de la cuenta AWS de las llaves de cada rama; el pipeline se detiene si no coincide
     develop: "111111111111"
     main: "222222222222"
-  deploy:                       # raíces que cada rama puede aplicar en un push (globs)
+  deploy:                       # raíces que cada rama puede planificar, revisar y desplegar (globs)
     develop:
       - infra-example/dev/*
     main:
@@ -57,6 +57,7 @@ aws s3api put-public-access-block --bucket $B --public-access-block-configuratio
 | `INFRACOST_API_KEY` | no | Sección de costos (`infracost auth login` da una llave gratuita) |
 | `GEMINI_API_KEY` | no | Resumen de IA (Google AI Studio) |
 | `GEMINI_MODEL` | no | Reemplaza el modelo por defecto; déjalo sin definir si no lo necesitas |
+| `GEMINI_FALLBACK_MODEL` | no | Un segundo modelo, que se usa solo cuando el principal está saturado (503) o sin cuota (429); las cuotas son por modelo |
 
 ```bash
 gh secret set AWS_ACCESS_KEY_ID_DEVELOP
@@ -64,14 +65,16 @@ gh secret set AWS_ACCESS_KEY_ID_DEVELOP
 
 Nunca subas llaves al repositorio; rota las que se hayan expuesto.
 
+
 ## 5. Abre un PR
 
-Crea una rama desde `develop`, cambia algo pequeño y abre un PR hacia `develop`. Obtienes un check por cada aspecto, un `plan` de solo lectura por cada raíz afectada y un comentario con el veredicto, el plan, el costo y el ambiente al que llega. Al hacer merge en `develop` se aplican las raíces que ese merge afectó y que `terraform.deploy.develop` permite; el primer apply crea recursos facturables (Aurora, balanceador de carga).
+Crea una rama desde `develop`, cambia algo pequeño y abre un PR hacia `develop`. Obtienes un check por cada aspecto, un `plan` de solo lectura por cada raíz afectada y un comentario con el veredicto, el plan, el costo y el ambiente al que llega. **Fusionar nunca toca AWS.** Para desplegar, ejecuta `terraform.yml` a mano (abajo); el primer apply crea recursos facturables (Aurora, balanceador de carga).
 
-Ejecución manual:
+Ejecución manual (la única forma de desplegar). `--ref` elige la rama, y con ella la cuenta AWS; la raíz debe ser una de las que `terraform.deploy` lista para esa rama:
 
 ```bash
 gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=plan
+gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=apply
 ```
 
 Si un PR no muestra ningún check, algún archivo de workflow es inválido: ejecuta `actionlint .github/workflows/*.yml`.

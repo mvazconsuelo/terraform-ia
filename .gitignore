@@ -15,3 +15,6 @@ backend.tf
 
 # Editor local history (VS Code Local History extension): copies of files, never commit
 .history/
+
+# Terminal chat with Gemini: kept local for now, not part of the repository yet
+tools/reviewer/chat/

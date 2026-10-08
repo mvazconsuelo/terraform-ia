@@ -36,7 +36,7 @@ No folder name is assumed. Roots come from `terraform.roots` (globs) or are infe
 | `main` (production) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | `terraform.accounts.main` |
 | `develop` and any other branch | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | `terraform.accounts.develop` |
 
-The branch picks the keys (the target branch for a PR, the pushed branch for a push). Before `init` the pipeline asks AWS for the keys' account and compares it with `terraform.accounts`; a mismatch, a missing secret or a missing id stops the run before anything is touched. `terraform.deploy.<branch>` lists the roots each branch may plan, review and apply, so a push to `develop` never touches production roots even when they share modules.
+The branch picks the keys (the target branch for a PR, the selected branch for a manual run). Before `init` the pipeline asks AWS for the keys' account and compares it with `terraform.accounts`; a mismatch, a missing secret or a missing id stops the run before anything is touched. `terraform.deploy.<branch>` lists the roots each branch may plan, review and apply, so a run on `develop` never touches production roots even when they share modules.
 
 ## State
 
@@ -46,15 +46,15 @@ One state per root: key `<root path>/terraform.tfstate` in the bucket `<project>
 
 **`pull-request.yml`**: `discover` → `fmt` · `python` (ruff, mypy) · `validate` · `tflint` · `checkov` (affected modules) · `contract` → `plan` per affected root (calls `terraform.yml`, read-only) → `review` (comment). A PR into the default branch (production) skips those six checks, which already passed in the PR into `develop`, runs plan, cost and review with the production keys, and marks every root protected. Fork PRs get no secrets and no AI.
 
-**`terraform.yml`**: called by PRs for a read-only plan; on push to `develop` or `main` it discovers the roots that push affected for that branch and runs `init` → `plan` → `apply` for each, one at a time; also runnable by hand with `gh workflow run`.
+**`terraform.yml`**: called by PRs for a read-only plan, and run by hand to plan or apply one root (`gh workflow run`). **Merging a pull request never touches AWS**: deploying is always an explicit, manual run.
 
 ## The reviewer
 
 `tools/reviewer`: findings from contract checks on the code (`rules/rules.yaml` + `rules/code_rules.py`) and checks on the plan and cost, then:
 
-- **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed, else `PASS`. Risk is the highest severity found. A skipped check is not a failure.
+- **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed (fmt, ruff and mypy, validate, TFLint, the repository contract), else `PASS`. Checkov only warns for now. Risk is the highest severity found. A skipped check is not a failure.
 - **`PLAN-001`:** a plan that destroys or replaces a stateful resource is CRITICAL in a protected root (every root in a PR into production) and HIGH elsewhere.
-- **Comment:** one per PR, updated in place. The header shows the risk, the decision and the environment; then nine sections: AI Gemini summary (optional), affected configurations, checks, Terraform plan (replacements included), cost, versions, findings, decision and a table with a link to every workflow job of the run.
+- **Comment:** one per PR, updated in place. The header is a coloured box (green for PASS, red or yellow for REQUEST_CHANGES) with the decision and the risk, then a table with the environment, the AWS account, the reviewed commit and the link to the run; then eight sections: AI Gemini summary, affected configurations, checks, Terraform plan (replacements included), cost, versions, repository rules, decision. Each check name and each root's plan link to the log of the job that ran it.
 
 - **Versions:** the Terraform and provider versions the plan used, against the latest releases, with a link to what changed. It only informs; it never changes a file and never affects the decision. If the registries do not answer, the section says so.
 
