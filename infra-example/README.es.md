@@ -1,6 +1,6 @@
 # infra-example
 
-[← README del repositorio](../README.es.md) · [English](README.md) · Español
+[English](README.md) · Español
 
 Dos **configuraciones raíz** de ejemplo construidas con `modules/`: `dev/web-demo` y `prod/web-demo`. El reviewer y los workflows las tratan
 como cualquier otra raíz; nada de la plataforma depende de estos nombres. La instalación, las ramas, los secrets y el pipeline están en
@@ -91,3 +91,7 @@ en `alb.listeners` (hoy es un marcador) y un `compute.ami_id` fijo en prod.
 Copia `infra-example/dev/web-demo` a `infra-example/<ambiente>/web-demo`, pon `environment` en `inputs.yaml` igual al nombre de la carpeta
 padre, edita los valores y agrega la nueva raíz bajo `terraform.deploy` de la rama que deba aplicarla. El bucket y la clave del state salen de
 la carpeta y de la cuenta.
+
+---
+
+[← README del repositorio](../README.es.md)

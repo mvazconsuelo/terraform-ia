@@ -1,6 +1,6 @@
 # What each file is
 
-[← README](../README.md) · English · [Español](es/files.md)
+English · [Español](es/files.md)
 
 Every file and folder in the repository: what it does, what it is for and what it represents.
 
@@ -166,4 +166,8 @@ A web tier in a VPC: an Application Load Balancer in front of an Auto Scaling Gr
 | `files.md` | This file. |
 | `checks.md` | Every rule the reviewer enforces: ID, severity, what it flags and where it lives. |
 | `es/` | The same documentation in Spanish (`install`, `architecture`, `checks`, `files`, `module-standard`). English is the default language. |
-| `images/` | `hero.svg` and `architecture.svg`, used by the README. |
+| `images/` | `hero.svg` and `architecture.svg`, used by the README. The stack logos in the diagram come from [Simple Icons](https://simpleicons.org) (CC0); the names and marks belong to their owners. |
+
+---
+
+[← Previous: How it works](architecture.md) · [README](../README.md) · [Next: The checks →](checks.md)

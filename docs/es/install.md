@@ -1,6 +1,6 @@
 # Instalación
 
-[← README](../../README.es.md) · [English](../install.md) · Español
+[English](../install.md) · Español
 
 ## Requisitos
 
@@ -78,3 +78,7 @@ gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -
 ```
 
 Si un PR no muestra ningún check, algún archivo de workflow es inválido: ejecuta `actionlint .github/workflows/*.yml`.
+
+---
+
+[README](../../README.es.md) · [Siguiente: Cómo funciona →](architecture.md)
