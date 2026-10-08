@@ -74,6 +74,15 @@ def _versions_in_use(env: Dict[str, str], plans_dir: str) -> Dict[str, str]:
     return in_use
 
 
+def _reviewed_commit(env: Dict[str, str]) -> Optional[Dict[str, str]]:
+    """The commit this review is about: {"sha": ..., "url": ...} (HEAD_SHA is the last commit of the PR), or None when it is unknown."""
+    sha, repository = env.get("HEAD_SHA", ""), env.get("GITHUB_REPOSITORY", "")
+    if not sha:
+        return None
+    server = env.get("GITHUB_SERVER_URL", "https://github.com")
+    return {"sha": sha[:7], "url": "{}/{}/commit/{}".format(server, repository, sha) if repository else ""}
+
+
 def pr_review(env: Optional[Dict[str, str]] = None, plans_dir: str = "plans", out: str = "review.json", markdown: str = "review.md") -> int:
     """Build the review of a pull request and write the JSON, the comment text and the job summary.
 
@@ -100,6 +109,7 @@ def pr_review(env: Optional[Dict[str, str]] = None, plans_dir: str = "plans", ou
             versions=check_versions(_versions_in_use(env, plans_dir)),
             jobs=list_jobs(env),
         )
+        result["commit"] = _reviewed_commit(env)
         with open(out, "w", encoding="utf-8") as handle:
             json.dump(result, handle, indent=2)
         comment = render_pr_comment(result)

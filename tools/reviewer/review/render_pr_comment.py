@@ -398,7 +398,10 @@ def _header_section(review: Dict[str, Any], jobs: List[Dict[str, Any]]) -> List[
         where = "`{}` ({})".format(target["branch"], target["environment"])
         account = "`{}`".format(target["account"]) if target.get("account") else "not configured in `common.yaml`"
     run = "[open]({})".format(jobs[0]["url"].rsplit("/job/", 1)[0]) if jobs else "—"
-    lines += ["| Environment | AWS account | Workflow run |", "|---|---|---|", "| {} | {} | {} |".format(where, account, run), ""]
+    commit = review.get("commit")
+    reviewed = _link("`{}`".format(commit["sha"]), commit.get("url") or None) if commit else "—"
+    row = "| {} | {} | {} | {} |".format(where, account, reviewed, run)
+    lines += ["| Environment | AWS account | Reviewed commit | Workflow run |", "|---|---|---|---|", row, ""]
     return lines + ["*This reviewer cannot approve, merge, or apply infrastructure.*"]
 
 

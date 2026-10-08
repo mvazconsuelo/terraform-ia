@@ -17,7 +17,7 @@ ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:gene
 
 # Temporary overload or server errors are retried; 404 (model retired) and 429 (no quota) are not, waiting does not fix them.
 TRANSIENT_HTTP = (500, 502, 503, 504)
-RETRY_DELAYS = (5, 15)   # seconds to wait before the second and the third attempt
+RETRY_DELAYS = (5, 15, 30)   # seconds to wait before each new attempt: a demand spike usually passes within a minute
 # When these still happen after the retries, the fallback model (if one is set) answers instead. Quotas are per model, so a 429 on one
 # model does not stop the other.
 FALLBACK_HTTP = (429,) + TRANSIENT_HTTP
@@ -95,9 +95,15 @@ class GeminiClient:
         except AIError as error:
             if not self.fallback_model or error.status not in FALLBACK_HTTP:
                 raise
+            first_error = error
         if self.notify:
             self.notify("{} is unavailable; trying {}...".format(self.model, self.fallback_model))
-        response = self._post_to(self.fallback_model, body)
+        try:
+            response = self._post_to(self.fallback_model, body)
+        except AIError as error:
+            # Say that both models were tried, so a failure is not mistaken for a missing fallback.
+            raise AIError("{} failed ({}); the fallback {} failed too ({})".format(
+                self.model, str(first_error)[:150], self.fallback_model, str(error)[:150]), error.status) from error
         self.model_used = self.fallback_model
         return response
 
