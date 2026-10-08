@@ -1,5 +1,7 @@
 # Module standard
 
+[← README](../README.md) · English · [Español](es/module-standard.md)
+
 The contract every module in `modules/` follows. Rule IDs refer to [`tools/reviewer/rules/rules.yaml`](../tools/reviewer/rules/rules.yaml).
 
 **Scope and boundaries**

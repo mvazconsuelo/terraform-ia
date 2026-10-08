@@ -1,6 +1,6 @@
 # infra-example
 
-[← Repository README](../README.md)
+[← Repository README](../README.md) · English · [Español](README.es.md)
 
 Two example **root configurations** built from `modules/`: `dev/web-demo` and `prod/web-demo`. The reviewer and the workflows treat
 them like any other root; nothing in the platform depends on these names. Setup, branches, secrets and the pipeline are in

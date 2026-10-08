@@ -52,9 +52,10 @@ def build_evidence(
     costs: Dict[str, Dict[str, Any]],
     checks: Dict[str, str],
     pr: Optional[Dict[str, str]],
+    versions: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Collect what the AI may see: the list of changed files (path and status, never their contents), the PR text, the
-    checks, the findings, the plans and the costs. The AI reads the evidence the review produced, not the source code."""
+    checks, the findings, the plans, the costs and the Terraform and provider versions. The AI reads the evidence the review produced, not the source code."""
     pull_request = None
     if pr and (pr.get("title") or pr.get("body")):
         pull_request = {
@@ -68,6 +69,7 @@ def build_evidence(
         "deterministic_findings": [finding.to_dict() for finding in findings],
         "plans": plans or {},
         "costs": costs or {},
+        "versions": [{key: item.get(key) for key in ("name", "in_use", "latest", "update")} for item in versions or []],
     }
 
 
@@ -168,6 +170,7 @@ def build_payload(
         "plan": evidence["plans"],
         "replacements": replacements(evidence["plans"]),
         "cost": evidence["costs"],
+        "versions": evidence["versions"],
         "deterministic_findings": evidence["deterministic_findings"],
     })
     return payload
@@ -258,12 +261,13 @@ def review(
     rules: List[dict],
     affected: Optional[List[Dict[str, Any]]] = None,
     verdict: Optional[Dict[str, Any]] = None,
+    versions: Optional[List[Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """The whole AI step. Returns {"summary": ..., "grounding_notes": [...]}.
 
     The summary is checked against the evidence: addresses, files and prices that cannot be verified are replaced by a
     marker, and a note says what was removed."""
-    evidence = build_evidence(root, changed, findings, plans, costs, checks, pr)
+    evidence = build_evidence(root, changed, findings, plans, costs, checks, pr, versions)
     answer = ask(client, build_payload(root, evidence, rules, affected, verdict))
 
     corpus = evidence_corpus(evidence)

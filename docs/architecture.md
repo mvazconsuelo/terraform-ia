@@ -1,6 +1,6 @@
 # How it works
 
-[← README](../README.md)
+[← README](../README.md) · English · [Español](es/architecture.md)
 
 ![Terraform-ia architecture](images/architecture.svg)
 
@@ -54,7 +54,9 @@ One state per root: key `<root path>/terraform.tfstate` in the bucket `<project>
 
 - **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed, else `PASS`. Risk is the highest severity found. A skipped check is not a failure.
 - **`PLAN-001`:** a plan that destroys or replaces a stateful resource is CRITICAL in a protected root (every root in a PR into production) and HIGH elsewhere.
-- **Comment:** one per PR, updated in place. The header shows the risk, the decision and the environment; then seven sections: AI Gemini summary (optional), affected configurations, checks, Terraform plan (replacements included), cost, findings, decision.
+- **Comment:** one per PR, updated in place. The header shows the risk, the decision and the environment; then nine sections: AI Gemini summary (optional), affected configurations, checks, Terraform plan (replacements included), cost, versions, findings, decision and a table with a link to every workflow job of the run.
+
+- **Versions:** the Terraform and provider versions the plan used, against the latest releases, with a link to what changed. It only informs; it never changes a file and never affects the decision. If the registries do not answer, the section says so.
 
 Every rule, with its severity and the function that implements it, is in [The checks](checks.md).
 

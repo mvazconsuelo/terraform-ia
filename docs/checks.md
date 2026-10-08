@@ -1,6 +1,6 @@
 # The checks
 
-[← README](../README.md)
+[← README](../README.md) · English · [Español](es/checks.md)
 
 Every rule the reviewer enforces, in one place. The catalog itself is [`tools/reviewer/rules/rules.yaml`](../tools/reviewer/rules/rules.yaml): this table mirrors it.
 
