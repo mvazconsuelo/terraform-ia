@@ -1,14 +1,16 @@
 """Builds the text of the PR comment (Markdown) from the result of a review.
 
-The comment has seven sections, in this order:
+The comment has nine sections, in this order:
 
-  1. AI Summary                    the only text written by a model; with the AI off or failing, the rest is identical;
+  1. AI Gemini summary (optional)  the only text written by a model; with the AI off or failing, the rest is identical;
   2. Affected configurations       which Terraform root configurations the PR touches, and why;
   3. Checks                        the result of fmt, validate, TFLint, Checkov and the repository contract;
   4. Terraform plan                what the plan adds, changes, destroys and replaces;
   5. Cost                          the Infracost estimate;
-  6. Findings                      what the rules found, with the rules evaluated;
-  7. Decision                      the verdict, and the reasons when it blocks.
+  6. Versions                      the Terraform and provider versions in use, and whether newer ones exist (information only);
+  7. Findings                      what the rules found, with the rules evaluated;
+  8. Decision                      the verdict, and the reasons when it blocks;
+  9. Workflow jobs                 a link to the log of every job of the run.
 
 Every section except the first is produced by code from deterministic inputs. Each `_<name>_section` function below
 returns the lines of one section; `render_pr_comment` joins them.
@@ -71,11 +73,11 @@ def _without_trailing_blank(lines: List[str]) -> List[str]:
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# 1. AI Summary
+# 1. AI Gemini summary (optional)
 # ----------------------------------------------------------------------------------------------------------------
 def _ai_summary_section(review: Dict[str, Any]) -> List[str]:
     """The AI summary, or the reason it is missing (disabled, or it failed)."""
-    lines = ["## AI Summary", ""]
+    lines = ["## AI Gemini summary (optional)", ""]
     analysis = review.get("ai_analysis")
     status = review.get("ai_status") or {}
 
@@ -281,7 +283,31 @@ def _cost_section(costs: Dict[str, dict]) -> List[str]:
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# 6. Findings
+# 6. Versions
+# ----------------------------------------------------------------------------------------------------------------
+UPDATE_LABEL = {"patch": "⬆️ patch update", "minor": "⬆️ minor update", "major": "⚠️ major update (may include breaking changes)"}
+
+
+def _versions_section(versions: List[Dict[str, Any]]) -> List[str]:
+    """The Terraform and provider versions the plan used, whether newer ones exist, and where to read what changed."""
+    lines = ["## Versions", ""]
+    if not versions:
+        return lines + ["_No version information was available._"]
+
+    rows = ["| Component | In use | Latest | Status | What changed |", "|---|---|---|---|---|"]
+    for item in versions:
+        if item["latest"] is None:
+            status, latest, changes = "❔ could not check", "n/a", "—"
+        elif item["update"]:
+            status, latest, changes = UPDATE_LABEL[item["update"]], item["latest"], "[release notes]({})".format(item["url"])
+        else:
+            status, latest, changes = "✅ up to date", item["latest"], "—"
+        rows.append("| {} | {} | {} | {} | {} |".format(item["name"], item["in_use"], latest, status, changes))
+    return lines + rows + ["", "_Information only: it does not change the decision._"]
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# 7. Findings
 # ----------------------------------------------------------------------------------------------------------------
 def _describe_finding(finding: Dict[str, Any]) -> List[str]:
     """One finding: severity and rule, what is wrong (with where), the evidence and how to fix it."""
@@ -314,7 +340,7 @@ def _findings_section(findings: List[Dict[str, Any]], rules_evaluated: Any) -> L
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# 7. Decision
+# 8. Decision
 # ----------------------------------------------------------------------------------------------------------------
 def _decision_section(review: Dict[str, Any]) -> List[str]:
     """The verdict and, when it blocks, the reasons."""
@@ -325,6 +351,19 @@ def _decision_section(review: Dict[str, Any]) -> List[str]:
     else:
         lines.append("The deterministic review found no blocking violations.")
     return lines
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# 9. Workflow jobs
+# ----------------------------------------------------------------------------------------------------------------
+def _workflow_jobs_section(jobs: List[Dict[str, Any]]) -> List[str]:
+    """A link to the log of every job of this run, with its result (empty when GitHub could not be asked)."""
+    if not jobs:
+        return []
+    rows = ["| Job | Result |", "|---|---|"]
+    for job in jobs:
+        rows.append("| [{}]({}) | {} |".format(job["name"], job["url"], CHECK_RESULT_LABEL.get(job["result"], "🔄 " + str(job["result"]))))
+    return ["## Workflow jobs", ""] + rows
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -342,7 +381,7 @@ def _describe_environment(target: Any) -> str:
 
 
 def render_pr_comment(review: Dict[str, Any]) -> str:
-    """Build the whole PR comment from a review result: the header, then the seven sections."""
+    """Build the whole PR comment from a review result: the header, then the nine sections (the last one only when GitHub listed the jobs)."""
     plans, costs, findings = review.get("plans", {}), review.get("costs", {}), review["findings"]
 
     sections = [
@@ -351,8 +390,10 @@ def render_pr_comment(review: Dict[str, Any]) -> str:
         _checks_section(review.get("checks", {})),
         _terraform_plan_section(plans),
         _cost_section(costs),
+        _versions_section(review.get("versions", [])),
         _findings_section(findings, review.get("rules_evaluated")),
         _decision_section(review),
+        _workflow_jobs_section(review.get("jobs", [])),
     ]
 
     lines = [
@@ -361,6 +402,7 @@ def render_pr_comment(review: Dict[str, Any]) -> str:
         _describe_environment(review.get("target")),
         "*This reviewer cannot approve, merge, or apply infrastructure.*", "", "---", "",
     ]
+    sections = [section for section in sections if section]      # a section with nothing to show is left out
     for index, section in enumerate(sections):
         lines += section
         if index < len(sections) - 1:

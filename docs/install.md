@@ -1,6 +1,6 @@
 # Setup
 
-[← README](../README.md)
+[← README](../README.md) · English · [Español](es/install.md)
 
 ## Requirements
 

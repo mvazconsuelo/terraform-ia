@@ -1,8 +1,8 @@
 # The checks
 
-[← README](../README.md)
+[← README](../README.md) · English · [Español](es/checks.md)
 
-Every rule the reviewer enforces, in one place. The catalog itself is [`tools/reviewer/rules/rules.yaml`](../tools/reviewer/rules/rules.yaml): this table is generated from it.
+Every rule the reviewer enforces, in one place. The catalog itself is [`tools/reviewer/rules/rules.yaml`](../tools/reviewer/rules/rules.yaml): this table mirrors it.
 
 A rule has an **ID** (`FAMILY-NUMBER`), a **severity**, and a **function** that implements it. The function is named after what it flags, and its docstring says which rule it is.
 
@@ -18,35 +18,36 @@ A rule has an **ID** (`FAMILY-NUMBER`), a **severity**, and a **function** that 
 
 ## The rules
 
-| Rule | Severity | What it flags | Reads | File | Function | Previous ID |
-| --- | --- | --- | --- | --- | --- | --- |
-| `MODULE-001` | High | Reusable capability implemented outside its module | the code | `rules/code_rules.py` | `resource_declared_outside_its_module` | `MOD-001` |
-| `MODULE-002` | Medium | Module is missing required contract files | the code | `rules/code_rules.py` | `module_missing_required_files` | `MOD-002` |
-| `MODULE-003` | Medium | Resource does not follow the `this` naming convention | the code | `rules/code_rules.py` | `resource_has_arbitrary_name` | `MOD-003` |
-| `MODULE-004` | Medium | Variable uses `type = any` | the code | `rules/code_rules.py` | `variable_typed_any` | `MOD-004` |
-| `MODULE-005` | Medium | Domain component placed outside its domain directory | the code | `rules/code_rules.py` | `component_outside_domain_folder` | `MOD-006` |
-| `MODULE-006` | High | Auto Scaling Group managed directly for EKS | the code | `rules/code_rules.py` | `eks_autoscaling_group_declared_directly` | `AWS-001` |
-| `TAGS-001` | High | Taggable resource does not receive mandatory tags | the code | `rules/code_rules.py` | `resource_missing_mandatory_tags` | `GOV-001` |
-| `TAGS-002` | Medium | Module does not expose the mandatory-tag input contract | the code | `rules/code_rules.py` | `module_missing_tag_variables` | `GOV-002` |
-| `TAGS-003` | High | Auto Scaling Group does not propagate mandatory tags | the code | `rules/code_rules.py` | `autoscaling_group_does_not_propagate_tags` | `GOV-003` |
-| `ROOT-001` | High | Root configuration does not follow its layout *(opt-in)* | the code | `rules/code_rules.py` | `root_breaks_layout` | `TF-004` |
-| `ROOT-002` | High | A root configuration's files differ from its siblings *(opt-in)* | the code | `rules/code_rules.py` | `root_files_differ` | `TF-006` |
-| `COST-001` | Medium | NAT gateway per AZ in a non-protected configuration | the code | `rules/code_rules.py` | `nat_gateway_per_zone_in_unprotected_root` | `NET-001` |
-| `COST-002` | Medium | Infracost reports a large monthly increase | the plan / Infracost | `rules/plan_rules.py` | `plan_cost_increase_above_threshold` | `PLAN-002` |
-| `PLAN-001` | Critical | Plan destroys or replaces a stateful resource | the plan / Infracost | `rules/plan_rules.py` | `plan_destroys_stateful_resource` | `PLAN-001` |
+| Rule | Severity | What it flags | Reads | Function |
+| --- | --- | --- | --- | --- |
+| `MODULE-001` | High | Reusable capability implemented outside its module | the code | `resource_declared_outside_its_module` |
+| `MODULE-002` | Medium | Module is missing required contract files | the code | `module_missing_required_files` |
+| `MODULE-003` | Medium | Resource does not follow the `this` naming convention | the code | `resource_has_arbitrary_name` |
+| `MODULE-004` | Medium | Variable uses `type = any` | the code | `variable_typed_any` |
+| `MODULE-005` | Medium | Domain component placed outside its domain directory | the code | `component_outside_domain_folder` |
+| `MODULE-006` | High | Auto Scaling Group managed directly for EKS | the code | `eks_autoscaling_group_declared_directly` |
+| `TAGS-001` | High | Taggable resource does not receive mandatory tags | the code | `resource_missing_mandatory_tags` |
+| `TAGS-002` | Medium | Module does not expose the mandatory-tag input contract | the code | `module_missing_tag_variables` |
+| `TAGS-003` | High | Auto Scaling Group does not propagate mandatory tags | the code | `autoscaling_group_does_not_propagate_tags` |
+| `ROOT-001` | High | Root configuration does not follow its layout *(opt-in)* | the code | `root_breaks_layout` |
+| `ROOT-002` | High | A root configuration's files differ from its siblings *(opt-in)* | the code | `root_files_differ` |
+| `COST-001` | Medium | NAT gateway per AZ in a non-protected configuration | the code | `nat_gateway_per_zone_in_unprotected_root` |
+| `COST-002` | Medium | Infracost reports a large monthly increase | the plan / Infracost | `plan_cost_increase_above_threshold` |
+| `PLAN-001` | Critical | Plan destroys or replaces a stateful resource | the plan / Infracost | `plan_destroys_stateful_resource` |
 
-- **Checks on the code** (`code_rules.py`) read the `.tf` files and run on the files a PR changes.
+- **Checks on the code** (`code_rules.py`) read the `.tf` files. The `repository contract` job runs them over the whole repository; the comment lists the findings in files and folders the PR touches.
 - **Checks on the plan** (`plan_rules.py`) read the sanitized Terraform plan and the Infracost estimate of each affected root.
 
 ## How a rule becomes a verdict
 
-`REQUEST_CHANGES` when a confirmed finding is **High** or **Critical**, or when an external check failed (`terraform validate`, TFLint, Checkov, the repository contract). Anything else is `PASS`; lower severities are still listed in the comment. `PLAN-001` is Critical in a protected root, and in every root of a PR into production.
+`REQUEST_CHANGES` when a confirmed finding is **High** or **Critical**, or when an external check failed (`terraform fmt`, `validate`, TFLint, the repository contract). Checkov runs with `--soft-fail`: its findings show as a warning and do not block yet. Anything else is `PASS`; lower severities are still listed in the comment. `PLAN-001` is Critical in a protected root, and in every root of a PR into production.
 
 ## Add a rule
 
 1. Add an entry to `rules.yaml`: `id`, `category`, `severity`, `check`, `title`, `explanation`, `recommendation`, plus the check's own parameters.
 2. Write the function in `code_rules.py` (decorated with `@check("<name>")`) or in `plan_rules.py` (decorated with `@plan_check("<name>")`), named after what it flags.
-3. If the `check:` name has no function, the reviewer stops with an error: a rule is never skipped silently.
+3. Add its row to the table above, and to the table in [module-standard](module-standard.md) if it enforces the standard.
+4. If the `check:` name has no function, the reviewer stops with an error: a rule is never skipped silently.
 
 ## What is deliberately not a rule
 

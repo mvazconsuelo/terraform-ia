@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" role="img" aria-label="terra-ai: Terraform Module Engineering Platform">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" role="img" aria-label="Terraform-ia: Terraform Module Engineering Platform">
   <rect width="1200" height="300" fill="#0B0F14"/>
   <rect x="0" y="0" width="1200" height="4" fill="#22D3EE"/>
-  <text x="60" y="120" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="64" font-weight="700" fill="#E6EDF3">terra-ai</text>
+  <text x="60" y="120" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="64" font-weight="700" fill="#E6EDF3">Terraform-ia</text>
   <text x="60" y="170" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="26" fill="#22D3EE">Terraform Module Engineering Platform</text>
   <text x="60" y="225" font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="20" fill="#9AA7B4">modules · compose · review · plan · cost · apply</text>
   <g font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif" font-size="16" fill="#0B0F14" font-weight="600">

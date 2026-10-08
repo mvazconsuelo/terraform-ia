@@ -1,6 +1,6 @@
 # What each file is
 
-[← README](../README.md)
+[← README](../README.md) · English · [Español](es/files.md)
 
 Every file and folder in the repository: what it does, what it is for and what it represents.
 
@@ -8,17 +8,19 @@ Every file and folder in the repository: what it does, what it is for and what i
 
 | File | What it is |
 | --- | --- |
-| `README.md` | Entry point: what the project is, the architecture and where to start. |
+| `README.md`, `README.es.md` | Entry point: what the project is, the architecture and where to start. English is the default; the Spanish version is `README.es.md`. |
 | `common.yaml` | The shared configuration. Terraform reads `project` (tags and names); the pipeline and the reviewer read `backend`, `ai`, and `terraform` (`accounts`, `deploy`, and the optional `roots`, `modules`, `protected`, `conventions`). It represents the one place a team edits to adapt the platform to its accounts. |
-| `.terraform-version` | The Terraform version for local tooling (for example tfenv). A change to it makes every root "affected". |
+| `.terraform-version` | The Terraform version for tools such as tfenv (the workflows pin `~> 1.16.0`). A change to it makes every root "affected". |
 | `.tflint.hcl` | TFLint configuration: the Terraform and AWS rule sets and the enabled rules (required version and providers, documented and typed variables and outputs, naming). |
+| `.claude/agents/terraform-ia-engineer.md` | The project's assistant for Claude Code: knows how modules, rules, reviewer code and docs are built here. It proposes and waits for approval, never runs commands, and gives you the git commands to run. |
+| `tools/pyproject.toml` | Settings for `ruff` and `mypy`, run on the reviewer's Python by the `python` job of every PR. |
 | `.gitignore` | Keeps out state, plans, the Python environment, the `backend.tf` the pipeline generates and editor history. |
 
 ## `.github/workflows/`: the pipeline
 
 | File | What it does |
 | --- | --- |
-| `pull-request.yml` | Runs on every pull request. Discovers the affected roots and modules, runs `fmt`, `validate`, TFLint, Checkov and the repository contract, asks `terraform.yml` for a read-only plan of each affected root, then builds the review comment. A PR into production skips the five checks and runs plan, cost and review only. |
+| `pull-request.yml` | Runs on every pull request. Discovers the affected roots and modules, runs `fmt`, the Python checks (ruff, mypy), `validate`, TFLint, Checkov and the repository contract, asks `terraform.yml` for a read-only plan of each affected root, then builds the review comment. A PR into production skips those six checks and runs plan, cost and review only. |
 | `terraform.yml` | The only workflow that touches AWS. For one root it selects the branch's keys, verifies the account, checks the state bucket, then runs `init` → `plan` → (`apply`). Called by PRs for a plan, triggered by a push to `develop` or `main` for an apply, or started by hand. |
 
 ## `tools/reviewer/`: the reviewer
@@ -27,7 +29,7 @@ A Python package that the workflows run: each step calls its own file, for examp
 dependency is PyYAML. Its code quality is enforced on every PR by the `python` job: `ruff` (errors, imports, likely bugs) and `mypy` (types), configured in `tools/pyproject.toml`. Each folder is one concern:
 
 ```
-git_diff → what changed  ─►  terraform/ → what it affects  ─►  rules/ → which rules it breaks
+lib/git_diff → what changed  ─►  terraform/ → what it affects  ─►  rules/ → which rules it breaks
                                                                     │
                           review/ → verdict and PR comment  ◄───────┘          ai/ → optional summary
 ```
@@ -38,9 +40,9 @@ git_diff → what changed  ─►  terraform/ → what it affects  ─►  rules
 | `terraform/` | Understanding the Terraform code and the plan. |
 | `rules/` | The contract: the catalog of rules and the code that checks them. |
 | `review/` | The review itself: the verdict and the PR comment. |
-| `infracost/`, `aws/` | Reading the Infracost data; checking which AWS account the keys belong to. |
+| `infracost/`, `aws/`, `versions/` | Reading the Infracost data; checking which AWS account the keys belong to; looking up newer Terraform and provider releases. |
 | `ai/` | The optional AI summary. |
-| `lib/` | Helpers every other folder can use, none of them a workflow step: `git_diff.py` (the files a PR changes: `git diff base...HEAD`, committed changes only), `github_actions.py` (writes `$GITHUB_OUTPUT` and `$GITHUB_STEP_SUMMARY`, reports errors, tells the mode and the branch) and `redact_secrets.py` (hides credentials in the text and values the AI receives). |
+| `lib/` | Helpers every other folder can use, none of them a workflow step: `git_diff.py` (the files a PR changes: `git diff base...HEAD`, committed changes only), `github_actions.py` (writes `$GITHUB_OUTPUT` and `$GITHUB_STEP_SUMMARY`, reports errors, tells the mode and the branch) `workflow_jobs.py` (the jobs of the current run with a link to each one, for the comment) and `redact_secrets.py` (hides credentials in the text and values the AI receives). |
 
 ### `terraform/`: understanding the Terraform code and the plan
 
@@ -69,13 +71,14 @@ The list of rules is in [The checks](checks.md).
 | --- | --- |
 | `finding.py` | The shape of a finding (severity, evidence, file, line, rule...) that every rule returns, and the severity order. It is the form a rule fills in to report a problem; it does not say how modules must be built (that is the [module standard](module-standard.md)). |
 | `run_review.py` | One review, in order: affected roots, findings, the deterministic verdict and the optional AI summary. |
-| `render_pr_comment.py` | Builds the text of the PR comment (Markdown) from a review result: seven sections, from the AI summary to the decision. |
+| `render_pr_comment.py` | Builds the text of the PR comment (Markdown) from a review result: nine sections, from the AI summary to the links to the workflow jobs. |
 
-### `infracost/` and `aws/`: the cost data and the AWS account
+### `infracost/`, `aws/` and `versions/`: the cost data, the AWS account and the releases
 
 | File | What it does |
 | --- | --- |
 | `infracost/read_infracost_json.py` | Reads the Infracost result and reduces it to totals, the monthly delta, per-resource cost and what could not be priced. It never runs Infracost and never estimates a price: prices come only from here. |
+| `versions/latest_versions.py` | Looks up the latest Terraform and provider releases (HashiCorp's release check and the Terraform Registry), compares them with the ones the plan used and gives the release-notes link. It only informs: it never changes a file or the verdict, and if a lookup fails the comment says so. |
 | `aws/account.py` | Picks the AWS keys of a branch, asks AWS which account they belong to, and checks the state bucket exists. |
 
 ### `ci/`: one file per step of the workflows
@@ -88,16 +91,17 @@ of the step you see in GitHub.
 | --- | --- | --- |
 | `discover_roots.py` | affected configurations | The roots a PR affects and its target branch owns: gives the workflow the matrix for the plan jobs, how many there are, and the list with the reasons. |
 | `select_roots.py` | which roots (terraform.yml) | The roots a `terraform.yml` run acts on: those a push affected, or the one asked for. |
-| `contract_check.py` | repository contract | The rules that read the code; exits with an error on any High or Critical finding. |
+| `contract_check.py` | repository contract | The rules that read the code, over the whole repository; fails on any High or Critical finding. |
 | `terraform_validate.py` | terraform validate | `terraform validate` in the modules and roots a PR affects, with one shared provider cache. |
 | `terraform_tflint.py` | TFLint | TFLint, with the repository's `.tflint.hcl`, on the affected modules. |
 | `terraform_checkov.py` | Checkov | Checkov on the affected modules; publishes the number of findings. |
 | `terraform_init.py` | terraform init | Picks the branch's AWS keys, checks their account against `terraform.accounts`, checks the state bucket, then `terraform init`. |
 | `terraform_plan.py` | terraform plan | `terraform plan` of one root, saved to `tfplan`. |
 | `terraform_show_json.py` | terraform show -json | The saved plan as JSON (`terraform show -json`) reduced to a sanitized summary the review reads. The raw plan is never written to disk. |
+| `terraform_versions.py` | terraform versions | Records which Terraform and provider versions the plan used, in `versions-<slug>.json`. Informational: it never fails the job. |
 | `infracost_estimate.py` | infracost | The Infracost estimate of the plan, written to `cost-<slug>.json`. It decides by itself whether to run (only a plan, only with an Infracost key) and installs the pinned Infracost release, verifying its checksum, if the machine does not have it. |
 | `terraform_apply.py` | terraform apply | Applies the saved plan. Does nothing when the run is only a plan. |
-| `pr_review.py` | PR comment | Builds the review and the text of the comment. |
+| `pr_review.py` | PR comment | Collects the check results, plans and costs, runs the review and writes the comment text. Never fails the job. |
 | `pr_comment.py` | PR comment | Creates or updates the single PR comment through the GitHub API. |
 
 ### `ai/`: the optional layer
@@ -147,7 +151,7 @@ A web tier in a VPC: an Application Load Balancer in front of an Auto Scaling Gr
 | `outputs.tf` | The values the root exposes (DNS name, endpoints, secret ARN, summary). |
 | `inputs.yaml` | The values of this root: tags, network, security rules, database, load balancer, compute. The only file that differs between dev and prod in intent. |
 | `web-user-data.sh.tftpl` | The boot script of the web instances (a placeholder web server with `/health`). |
-| `infra-example/README.md` | The example's own notes: inputs reference and design notes. |
+| `README.md`, `README.es.md` (in `infra-example/`) | The example's own notes (English and Spanish): layout, `inputs.yaml` reference, what is checked and design notes. |
 
 ## `docs/`
 
@@ -158,4 +162,5 @@ A web tier in a VPC: an Application Load Balancer in front of an Auto Scaling Gr
 | `module-standard.md` | The contract every module follows. |
 | `files.md` | This file. |
 | `checks.md` | Every rule the reviewer enforces: ID, severity, what it flags and where it lives. |
+| `es/` | The same documentation in Spanish (`install`, `architecture`, `checks`, `files`, `module-standard`). English is the default language. |
 | `images/` | `hero.svg` and `architecture.svg`, used by the README. |

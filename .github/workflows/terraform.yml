@@ -103,6 +103,8 @@ jobs:
         run: PYTHONPATH=tools python -m reviewer.ci.terraform_apply
       - name: terraform show -json
         run: PYTHONPATH=tools python -m reviewer.ci.terraform_show_json
+      - name: terraform versions
+        run: PYTHONPATH=tools python -m reviewer.ci.terraform_versions
       - name: infracost
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
@@ -114,5 +116,6 @@ jobs:
           path: |
             plan-${{ matrix.slug }}.json
             cost-${{ matrix.slug }}.json
+            versions-${{ matrix.slug }}.json
           if-no-files-found: ignore
           retention-days: 3

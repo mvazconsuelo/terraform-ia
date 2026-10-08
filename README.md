@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/brand/hero.svg" alt="terra-ai: Terraform Module Engineering Platform" width="100%">
+<img src="docs/images/brand/hero.svg" alt="Terraform-ia: Terraform Module Engineering Platform" width="100%">
 
 <br>
 
@@ -9,6 +9,8 @@
 ![Modules](https://img.shields.io/badge/modules-reusable_AWS-0B0F14?logo=terraform&logoColor=22D3EE&labelColor=0B0F14)
 ![Review](https://img.shields.io/badge/review-deterministic-0B0F14?logo=python&logoColor=22D3EE&labelColor=0B0F14)
 ![AI](https://img.shields.io/badge/AI_summary-optional-0B0F14?logo=googlegemini&logoColor=22D3EE&labelColor=0B0F14)
+
+English · [Español](README.es.md)
 
 **[Setup](docs/install.md)** · **[How it works](docs/architecture.md)** · **[What each file is](docs/files.md)** · **[The checks](docs/checks.md)** · **[Module standard](docs/module-standard.md)**
 
@@ -53,10 +55,11 @@ To run the pipeline on your own repository: [Setup](docs/install.md).
 ```text
 modules/              Reusable AWS modules (README each)
 infra-example/        Example roots: dev/web-demo and prod/web-demo
-tools/reviewer/       The reviewer: ci/ (one file per workflow step) · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
+tools/reviewer/       The reviewer: ci/ (one file per workflow step) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
 .github/workflows/    pull-request.yml (checks, plans, comment) · terraform.yml (plan / apply)
-common.yaml           project, state settings, AI switch, accounts per branch, optional terraform: block
+common.yaml           project, state settings, AI switch, AWS account and deployable roots per branch
 docs/                 Setup, architecture, file map, the checks, module standard
+.claude/agents/       terraform-ia-engineer: assistant that knows how this repository is built (proposes, never runs commands)
 ```
 
 </details>
