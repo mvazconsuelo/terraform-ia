@@ -1,28 +1,18 @@
-"""Sanitisation: nothing sensitive may leave the repository, and nothing sensitive may reach the AI.
+"""Redact secrets: nothing sensitive may leave the repository, and nothing sensitive may reach the AI.
 
-Three layers, from coarse to fine:
-  * `blocked_reason` whole files that are never read: a fixed floor (state, keys, .env, tfvars...) plus the repository's
-                     own `.geminiignore`;
+The AI never receives source files, but it does receive text that a person wrote (the PR title and description) and values
+from the Terraform plan, and both can hold a secret. Three functions, from the finest to the broadest:
+
   * `sanitize_text`  credentials inside any text (known key formats, and `password = "..."` style assignments);
-  * `sanitize_value` a value from a plan, using Terraform's own "this is sensitive" mask plus the name of the key.
+  * `sanitize_value` a value from a plan, using Terraform's own "this is sensitive" mask plus the name of the key;
+  * `sanitize_tree`  every string inside a JSON-like structure: the last barrier before something is sent.
 """
 from __future__ import annotations
 
-import fnmatch
-import os
 import re
-from typing import Any, List, Optional
+from typing import Any
 
 REDACTED = "<SENSITIVE_VALUE>"
-
-# The floor: files that are NEVER read into the AI's context, whatever any file says. Secrets and state live here.
-BLOCKED_GLOBS = [
-    "*.tfstate", "*.tfstate.*", "*.tfvars", "*.tfvars.json", ".terraform/*", "*/.terraform/*",
-    ".env", ".env.*", "*.pem", "*.key", "*.p12", "id_rsa*", "*credentials*", "*.auto.tfvars",
-]
-
-# The repository's own list, on top of the floor: what the AI does not need to read. One pattern per line (`#` starts a comment).
-IGNORE_FILE = ".geminiignore"
 
 # A key NAME that suggests a secret: the value of `db_password`, `api_key`... is hidden whatever it contains.
 SENSITIVE_KEY_RE = re.compile(r"(?i)(password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|connection[_-]?string)")
@@ -48,39 +38,6 @@ _ASSIGNMENT_RE = re.compile(
 
 # A value that starts like this is a Terraform reference (var.x, module.x.y), not a secret, so it is kept.
 _REFERENCE_RE = re.compile(r'^"?(var|local|data|module|aws_|each|self)\b')
-
-
-def _matches(path: str, pattern: str) -> bool:
-    """Whether a path matches a pattern. `docs/` blocks everything under that folder; anything else is a shell pattern
-    matched against the whole path and against the file name."""
-    normalized = path.replace(os.sep, "/")
-    if pattern.endswith("/"):
-        return normalized.startswith(pattern) or ("/" + pattern) in ("/" + normalized)
-    return fnmatch.fnmatch(normalized, pattern) or fnmatch.fnmatch(os.path.basename(normalized), pattern)
-
-
-def ignore_patterns(root: str) -> List[str]:
-    """The patterns of the repository's `.geminiignore`: what the AI must not read, besides the always-blocked floor."""
-    path = os.path.join(root, IGNORE_FILE)
-    if not os.path.isfile(path):
-        return []
-    with open(path, encoding="utf-8") as handle:
-        lines = [line.strip() for line in handle]
-    return [line for line in lines if line and not line.startswith("#")]
-
-
-def is_blocked(path: str) -> bool:
-    """True for file types that must never leave the repository (the floor: see BLOCKED_GLOBS)."""
-    return any(_matches(path, pattern) for pattern in BLOCKED_GLOBS)
-
-
-def blocked_reason(path: str, root: Optional[str] = None) -> Optional[str]:
-    """Why the AI must not read this file, or None when it may: a sensitive file type, or listed in `.geminiignore`."""
-    if is_blocked(path):
-        return "blocked: sensitive file type"
-    if root is not None and any(_matches(path, pattern) for pattern in ignore_patterns(root)):
-        return "ignored by {}".format(IGNORE_FILE)
-    return None
 
 
 def sanitize_text(text: str) -> str:
@@ -110,8 +67,8 @@ def sanitize_value(value: Any, sensitive_mask: Any = None, key: str = "") -> Any
         return {name: sanitize_value(item, mask.get(name), name) for name, item in value.items()}
 
     if isinstance(value, list):
-        mask = sensitive_mask if isinstance(sensitive_mask, list) else []
-        return [sanitize_value(item, mask[index] if index < len(mask) else None, key) for index, item in enumerate(value)]
+        masks = sensitive_mask if isinstance(sensitive_mask, list) else []
+        return [sanitize_value(item, masks[index] if index < len(masks) else None, key) for index, item in enumerate(value)]
 
     if isinstance(value, str):
         if key and SENSITIVE_KEY_RE.search(key):

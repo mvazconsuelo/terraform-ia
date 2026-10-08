@@ -7,7 +7,7 @@ import os
 import sys
 from typing import List, Optional
 
-from .git_diff import git_changed_files
+from ..lib.git_diff import git_changed_files
 from ..review.run_review import load_rules, run_checks
 from ..terraform.terraform_map import Repo
 

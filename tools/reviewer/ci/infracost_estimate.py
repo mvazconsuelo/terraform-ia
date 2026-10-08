@@ -16,8 +16,8 @@ import tempfile
 import urllib.request
 from typing import Dict, Optional
 
+from ..lib.github_actions import mode_of
 from ..terraform.run_terraform import run_terraform
-from .github_actions import mode_of
 
 # The Infracost release to install on a Linux runner, pinned so a run is reproducible. Its checksum is verified.
 INFRACOST_VERSION = "v0.10.46"
@@ -36,7 +36,9 @@ def _install_infracost(directory: str) -> str:
 
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
         member = next(item for item in tar.getmembers() if item.isfile() and item.name.startswith("infracost"))
-        content = tar.extractfile(member).read()
+        extracted = tar.extractfile(member)
+        assert extracted is not None   # `member` is a regular file, so it can be read
+        content = extracted.read()
     program = os.path.join(directory, "infracost")
     with open(program, "wb") as handle:
         handle.write(content)
@@ -50,7 +52,7 @@ def estimate_step(env: Optional[Dict[str, str]] = None) -> int:
     Does nothing unless the run is a plan and an Infracost key exists. An Infracost failure is not an error for the pipeline:
     it only warns, and the cost section of the comment stays empty. The raw plan it reads goes to a temporary file that is
     deleted at once, because a raw plan can hold secrets. Reads ROOT, SLUG, INPUT_MODE and INFRACOST_API_KEY."""
-    env = os.environ if env is None else env
+    env = dict(os.environ) if env is None else env
     if mode_of(env) != "plan":
         print("This run applies; the cost estimate is only needed for a plan.")
         return 0

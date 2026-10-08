@@ -6,10 +6,10 @@ import os
 import sys
 from typing import Dict, Optional
 
-from .git_diff import git_changed_files
+from ..lib.git_diff import git_changed_files
+from ..lib.github_actions import append_to_github_file, branch_of
 from ..terraform.affected_roots import discover
 from ..terraform.terraform_map import Repo
-from .github_actions import append_to_github_file, branch_of
 
 
 def select_roots(env: Optional[Dict[str, str]] = None) -> int:
@@ -18,7 +18,7 @@ def select_roots(env: Optional[Dict[str, str]] = None) -> int:
     On a push: the roots that push affected and that the pushed branch may apply (`terraform.deploy`).
     Otherwise (called by a PR, or run by hand): the one root that was asked for.
     Reads EVENT, BEFORE (the commit before the push), REF_NAME and ROOT from the environment."""
-    env = os.environ if env is None else env
+    env = dict(os.environ) if env is None else env
     repo_root = os.path.abspath(".")
     repo = Repo(repo_root)
 

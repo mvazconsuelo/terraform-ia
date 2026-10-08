@@ -10,7 +10,6 @@ The order matters:
 """
 from __future__ import annotations
 
-import argparse
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -18,11 +17,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 # Importing a checks module registers its checks (see rules/registry.py); the names are not used otherwise.
-from ..rules import code_rules as _code_rules, plan_rules as _plan_rules  # noqa: F401
+from ..rules import code_rules as _code_rules  # noqa: F401
+from ..rules import plan_rules as _plan_rules  # noqa: F401
 from ..rules import registry
-from .finding import Finding, severity_rank
 from ..terraform.affected_roots import for_branch
 from ..terraform.terraform_map import Repo
+from .finding import Finding, severity_rank
 
 RULES_PATH = Path(__file__).resolve().parent.parent / "rules" / "rules.yaml"
 
@@ -218,12 +218,8 @@ def review(
     }
 
 
-def ai_requested(args: argparse.Namespace, root: str) -> bool:
-    """Should the AI step run? `--no-ai` wins, then `--ai`, then `ai.enabled` in common.yaml. The default is off."""
-    if getattr(args, "no_ai", False):
-        return False
-    if getattr(args, "ai", False):
-        return True
+def ai_enabled(root: str) -> bool:
+    """Is the AI summary switched on? It is `ai.enabled` in common.yaml, and the default is off."""
     path = os.path.join(root, "common.yaml")
     if os.path.isfile(path):
         with open(path, encoding="utf-8") as handle:

@@ -10,7 +10,7 @@ import urllib.request
 from itertools import count
 from typing import Any, Dict, List, Optional
 
-from ..review.markdown_report import MARKER
+from ..review.render_pr_comment import COMMENT_MARKER
 
 
 def pr_comment(env: Optional[Dict[str, str]] = None, markdown: str = "review.md") -> int:
@@ -18,7 +18,7 @@ def pr_comment(env: Optional[Dict[str, str]] = None, markdown: str = "review.md"
 
     The comment is found by the hidden marker on its first line, so every run edits the same comment instead of adding a
     new one. Needs GITHUB_TOKEN (with pull-requests: write), GITHUB_REPOSITORY and PR_NUMBER."""
-    env = os.environ if env is None else env
+    env = dict(os.environ) if env is None else env
     api = env.get("GITHUB_API_URL", "https://api.github.com")
     issues = "{}/repos/{}/issues".format(api, env["GITHUB_REPOSITORY"])
     number = env["PR_NUMBER"]
@@ -40,7 +40,7 @@ def pr_comment(env: Optional[Dict[str, str]] = None, markdown: str = "review.md"
         existing = None
         for page in count(1):
             comments = call("GET", "{}/{}/comments?per_page=100&page={}".format(issues, number, page))
-            existing = next((comment for comment in comments if MARKER in (comment.get("body") or "")), None)
+            existing = next((comment for comment in comments if COMMENT_MARKER in (comment.get("body") or "")), None)
             if existing or len(comments) < 100:
                 break
 
