@@ -5,37 +5,57 @@ One module for **Aurora PostgreSQL and Aurora MySQL**. The `engine` input select
 
 ## Usage
 
-```hcl
-# PostgreSQL
-module "orders_db" {
-  source = "../../modules/aurora"
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
 
-  name               = "orders-dev"
-  engine             = "postgresql"
-  engine_version     = "16.4"                       # choose a currently supported version
+```yaml
+# ---------- postgres_db ----------
+postgres_db:                        # PostgreSQL
+  name: "${project}-${environment}-postgres"
+  engine: postgresql
+  engine_version: "16.4"            # choose a currently supported version
+  cluster_parameters:
+    rds.force_ssl:
+      value: "1"
+
+# ---------- mysql_db ----------
+mysql_db:                           # MySQL, Serverless v2, explicit instances
+  name: "${project}-${environment}-mysql"
+  engine: mysql
+  engine_version: "8.0.mysql_aurora.3.05.2"
+  serverless_v2:
+    min_capacity: 0.5
+    max_capacity: 8
+  instances:
+    writer:
+      promotion_tier: 0
+    reader-a:
+      promotion_tier: 1
+```
+
+```hcl
+module "postgres_db" {
+  source = "../../../modules/aurora"
+
+  name               = templatestring(local.inputs.postgres_db.name, local.tags)
+  engine             = local.inputs.postgres_db.engine
+  engine_version     = local.inputs.postgres_db.engine_version
+  cluster_parameters = local.inputs.postgres_db.cluster_parameters
+  tags               = local.tags
   subnet_ids         = module.vpc.private_subnet_ids
   security_group_ids = [module.db_sg.security_group_id]
-  tags               = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "orders" }
-
-  cluster_parameters = { "rds.force_ssl" = { value = "1" } }
 }
 
-# MySQL, Serverless v2, explicit instances
-module "catalog_db" {
-  source = "../../modules/aurora"
+module "mysql_db" {
+  source = "../../../modules/aurora"
 
-  name               = "catalog-dev"
-  engine             = "mysql"
-  engine_version     = "8.0.mysql_aurora.3.05.2"
+  name               = templatestring(local.inputs.mysql_db.name, local.tags)
+  engine             = local.inputs.mysql_db.engine
+  engine_version     = local.inputs.mysql_db.engine_version
+  serverless_v2      = local.inputs.mysql_db.serverless_v2
+  instances          = local.inputs.mysql_db.instances
+  tags               = local.tags
   subnet_ids         = module.vpc.private_subnet_ids
   security_group_ids = [module.db_sg.security_group_id]
-  tags               = local.tags
-
-  serverless_v2 = { min_capacity = 0.5, max_capacity = 8 }
-  instances = {
-    writer   = { promotion_tier = 0 }
-    reader-a = { promotion_tier = 1 }
-  }
 }
 ```
 

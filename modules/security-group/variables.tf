@@ -28,8 +28,8 @@ variable "tags" {
   })
 
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.tags.environment)
-    error_message = "tags.environment must be one of: dev, staging, prod."
+    condition     = can(regex("^[a-z][a-z0-9-]{1,19}$", var.tags.environment))
+    error_message = "tags.environment must be 2 to 20 characters: lowercase letters, numbers and hyphens, starting with a letter."
   }
 
   validation {
@@ -45,13 +45,15 @@ variable "extra_tags" {
 }
 
 variable "ingress_rules" {
-  description = "Ingress rules keyed by a stable name. Exactly one of cidr_ipv4, referenced_security_group_id or prefix_list_id per rule."
+  description = "Ingress rules keyed by a stable name. `port` sets from_port and to_port at once. Exactly one source per rule: cidr_ipv4 (a CIDR, or \"vpc\" for vpc_cidr_block), source_sg (a key of source_security_groups), referenced_security_group_id or prefix_list_id."
   type = map(object({
     description                  = string
     protocol                     = optional(string, "tcp")
+    port                         = optional(number)
     from_port                    = optional(number)
     to_port                      = optional(number)
     cidr_ipv4                    = optional(string)
+    source_sg                    = optional(string)
     referenced_security_group_id = optional(string)
     prefix_list_id               = optional(string)
   }))
@@ -60,9 +62,9 @@ variable "ingress_rules" {
   validation {
     condition = alltrue([
       for r in values(var.ingress_rules) :
-      length([for s in [r.cidr_ipv4, r.referenced_security_group_id, r.prefix_list_id] : s if s != null]) == 1
+      length([for s in [r.cidr_ipv4, r.source_sg, r.referenced_security_group_id, r.prefix_list_id] : s if s != null]) == 1
     ])
-    error_message = "Each ingress rule needs exactly one source: cidr_ipv4, referenced_security_group_id or prefix_list_id."
+    error_message = "Each ingress rule needs exactly one source: cidr_ipv4, source_sg, referenced_security_group_id or prefix_list_id."
   }
 
   validation {
@@ -71,13 +73,21 @@ variable "ingress_rules" {
   }
 
   validation {
-    condition     = alltrue([for r in values(var.ingress_rules) : r.protocol == "-1" || (r.from_port != null && r.to_port != null && r.from_port <= r.to_port)])
-    error_message = "from_port/to_port are required (from <= to) unless protocol is -1."
+    condition = alltrue([
+      for r in values(var.ingress_rules) :
+      r.protocol == "-1" || r.port != null || (r.from_port != null && r.to_port != null && r.from_port <= r.to_port)
+    ])
+    error_message = "port (or from_port <= to_port) is required unless protocol is -1."
   }
 
   validation {
-    condition     = alltrue([for r in values(var.ingress_rules) : r.cidr_ipv4 == null ? true : can(cidrhost(r.cidr_ipv4, 0))])
-    error_message = "cidr_ipv4 must be a valid IPv4 CIDR."
+    condition     = alltrue([for r in values(var.ingress_rules) : r.cidr_ipv4 == null ? true : r.cidr_ipv4 == "vpc" || can(cidrhost(r.cidr_ipv4, 0))])
+    error_message = "cidr_ipv4 must be a valid IPv4 CIDR, or \"vpc\"."
+  }
+
+  validation {
+    condition     = alltrue([for r in values(var.ingress_rules) : r.source_sg == null ? true : contains(keys(var.source_security_groups), r.source_sg)])
+    error_message = "source_sg must be a key of source_security_groups."
   }
 }
 
@@ -88,13 +98,15 @@ variable "allow_public_ingress" {
 }
 
 variable "egress_rules" {
-  description = "Egress rules keyed by a stable name; same shape as ingress_rules."
+  description = "Egress rules keyed by a stable name; same shape and same ways to name the destination as ingress_rules."
   type = map(object({
     description                  = string
     protocol                     = optional(string, "tcp")
+    port                         = optional(number)
     from_port                    = optional(number)
     to_port                      = optional(number)
     cidr_ipv4                    = optional(string)
+    source_sg                    = optional(string)
     referenced_security_group_id = optional(string)
     prefix_list_id               = optional(string)
   }))
@@ -103,9 +115,22 @@ variable "egress_rules" {
   validation {
     condition = alltrue([
       for r in values(var.egress_rules) :
-      length([for s in [r.cidr_ipv4, r.referenced_security_group_id, r.prefix_list_id] : s if s != null]) == 1
+      length([for s in [r.cidr_ipv4, r.source_sg, r.referenced_security_group_id, r.prefix_list_id] : s if s != null]) == 1
     ])
-    error_message = "Each egress rule needs exactly one destination."
+    error_message = "Each egress rule needs exactly one destination: cidr_ipv4, source_sg, referenced_security_group_id or prefix_list_id."
+  }
+
+  validation {
+    condition = alltrue([
+      for r in values(var.egress_rules) :
+      r.protocol == "-1" || r.port != null || (r.from_port != null && r.to_port != null && r.from_port <= r.to_port)
+    ])
+    error_message = "port (or from_port <= to_port) is required unless protocol is -1."
+  }
+
+  validation {
+    condition     = alltrue([for r in values(var.egress_rules) : r.source_sg == null ? true : contains(keys(var.source_security_groups), r.source_sg)])
+    error_message = "source_sg must be a key of source_security_groups."
   }
 }
 
@@ -113,4 +138,16 @@ variable "allow_all_egress" {
   description = "Add an allow-all egress rule. Default false (least privilege): list required egress in egress_rules."
   type        = bool
   default     = false
+}
+
+variable "vpc_cidr_block" {
+  description = "CIDR of the VPC. A rule with cidr_ipv4 = \"vpc\" uses it."
+  type        = string
+  default     = null
+}
+
+variable "source_security_groups" {
+  description = "Security group IDs a rule can name with source_sg, keyed by the name the rule uses (for example { alb = module.alb_sg.security_group_id })."
+  type        = map(string)
+  default     = {}
 }

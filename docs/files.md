@@ -9,11 +9,14 @@ Every file and folder in the repository: what it does, what it is for and what i
 | File | What it is |
 | --- | --- |
 | `README.md`, `README.es.md` | Entry point: what the project is, the architecture and where to start. English is the default; the Spanish version is `README.es.md`. |
-| `common.yaml` | The shared configuration. Terraform reads `project` (tags and names); the pipeline and the reviewer read `backend`, `ai`, and `terraform` (`accounts`, `deploy`, and the optional `roots`, `modules`, `protected`, `conventions`). It represents the one place a team edits to adapt the platform to its accounts. |
+| `common.yaml` | The shared configuration of the project. Each root reads its `project` and its `environment` from it (the environment is the one whose list of roots has the root; owner and cost center are in the root's `inputs.yaml`); the pipeline and the reviewer read `project` (state bucket and checks) and `backend`, `ai`, and `terraform` (`environments`, each with its `branch`, `account` and `roots`, and the optional `roots`, `modules`, `protected`, `conventions`). It represents the one place a team edits to adapt the platform to its accounts. |
 | `.terraform-version` | The Terraform version for tools such as tfenv (the workflows pin `~> 1.16.0`). A change to it makes every root "affected". |
 | `.tflint.hcl` | TFLint configuration: the Terraform and AWS rule sets and the enabled rules (required version and providers, documented and typed variables and outputs, naming). |
-| `.claude/agents/terraform-ia-engineer.md` | The project's assistant for Claude Code: knows how modules, rules, reviewer code and docs are built here. It proposes and waits for approval, never runs commands, and gives you the git commands to run. |
-| `tools/pyproject.toml` | Settings for `ruff` and `mypy`, run on the reviewer's Python by the `python` job of every PR. |
+| `CLAUDE.md` | What Claude Code reads in every session: how the repository works, where things live and every convention. The single place to change a convention. |
+| `.claude/agents/terraform-ia-engineer.md` | The project's assistant for Claude Code. It reads `CLAUDE.md`, proposes and waits for approval, never runs commands, and gives you the git commands to run. |
+| `.claude/settings.json`, `.claude/hooks/after_edit.py` | Claude Code runs the hook after every edit: `ruff` and `mypy` after a change in `tools/`, `terraform fmt` after a change in a `.tf` file. If a check fails, the output goes back to Claude so it fixes the file. `settings.json` also blocks the commands that belong to the owner: git writes (`add`, `commit`, `push`, `merge`...), `gh workflow run` and the other `gh` commands that publish or change settings, and `terraform apply`, `destroy`, `import` and `state`. |
+| `.claude/skills/new-module/`, `new-rule/`, `new-root/` | The step-by-step lists for creating a module, adding a reviewer rule, and building infrastructure from the modules (a new environment or stack). Claude Code uses them when you ask for either; the agent follows them as its proposal. |
+| `pyproject.toml` | Settings for `ruff` and `mypy`, run on the reviewer's Python by the `python` job of every PR. |
 | `.github/CODEOWNERS` | Who reviews what: GitHub requests a review from the owner on every pull request that touches the workflows, the reviewer, `common.yaml`, the modules, the examples or the docs. |
 | `.github/dependabot.yml` | Dependabot: one weekly pull request **into `develop`** that updates the GitHub Actions the workflows use, grouped in one. See [Dependency updates](architecture.md#dependency-updates-dependabot). |
 | `.gitignore` | Keeps out state, plans, the Python environment, the `backend.tf` the pipeline generates and editor history. |
@@ -25,10 +28,10 @@ Every file and folder in the repository: what it does, what it is for and what i
 | `pull-request.yml` | Runs on every pull request. Discovers the affected roots and modules, runs `fmt`, the Python checks (ruff, mypy), `validate`, TFLint, Checkov and the repository contract, asks `terraform.yml` for a read-only plan of each affected root, then builds the review comment. A PR into production skips those six checks and runs plan, cost and review only. |
 | `terraform.yml` | The only workflow that touches AWS. For one root it selects the branch's keys, verifies the account, checks the state bucket, then runs `init` → `plan` → (`apply`). Called by PRs for a plan, or started by hand for a plan or an apply: merging never deploys. |
 
-## `tools/reviewer/`: the reviewer
+## `tools/`: the reviewer
 
-A Python package that the workflows run: each step calls its own file, for example `python -m reviewer.ci.terraform_init`. Its only
-dependency is PyYAML. Its code quality is enforced on every PR by the `python` job: `ruff` (errors, imports, likely bugs) and `mypy` (types), configured in `tools/pyproject.toml`. Each folder is one concern:
+A Python package that the workflows run: each step calls its own file, for example `python -m tools.ci.terraform_init`. Its only
+dependency is PyYAML. Its code quality is enforced on every PR by the `python` job: `ruff` (errors, imports, likely bugs) and `mypy` (types), configured in `pyproject.toml`. Each folder is one concern:
 
 ```
 lib/git_diff → what changed  ─►  terraform/ → what it affects  ─►  rules/ → which rules it breaks
@@ -44,7 +47,7 @@ lib/git_diff → what changed  ─►  terraform/ → what it affects  ─►  r
 | `review/` | The review itself: the verdict and the PR comment. |
 | `infracost/`, `aws/`, `versions/` | Reading the Infracost data; checking which AWS account the keys belong to; looking up newer Terraform and provider releases. |
 | `ai/` | The optional AI summary. |
-| `chat/` | A terminal chat with Gemini that answers questions about the project from its documentation (`terminal_chat.py`) and, with `/reviews`, from the review comments of recent pull requests: plans, costs, versions, findings by date (`pr_reviews.py`, read with `gh`). `format_terminal.py` renders the answers (install `rich` for tables). Read-only: no files, commands or AWS. Run it by hand with your own `GEMINI_API_KEY`: `PYTHONPATH=tools python -m reviewer.chat.terminal_chat`. |
+| `chat/` | A terminal chat with Gemini that answers questions about the project from its documentation (`terminal_chat.py`) and, with `/reviews`, from the review comments of recent pull requests: plans, costs, versions, findings by date (`pr_reviews.py`, read with `gh`). `format_terminal.py` renders the answers (install `rich` for tables). Read-only: no files, commands or AWS. Run it by hand with your own `GEMINI_API_KEY`: `python -m tools.chat.terminal_chat`. |
 | `lib/` | Helpers every other folder can use, none of them a workflow step: `git_diff.py` (the files a PR changes: `git diff base...HEAD`, committed changes only), `github_actions.py` (writes `$GITHUB_OUTPUT` and `$GITHUB_STEP_SUMMARY`, reports errors, tells the mode and the branch) `workflow_jobs.py` (the jobs of the current run with a link to each one, so the comment can link to their logs) and `redact_secrets.py` (hides credentials in the text and values the AI receives). |
 
 ### `terraform/`: understanding the Terraform code and the plan
@@ -53,7 +56,7 @@ lib/git_diff → what changed  ─►  terraform/ → what it affects  ─►  r
 | --- | --- |
 | `read_tf_files.py` | Reads a `.tf` file and finds its blocks (`resource`, `module`, `variable`...) and their attributes. |
 | `terraform_map.py` | The map of the repository: which folders are roots and which are modules, which module calls which, and which of them a set of changed files affects. Also reads the `terraform:` block of `common.yaml`. |
-| `affected_roots.py` | Which roots to act on for a target branch (applying `terraform.deploy`). The decision the workflows rely on. |
+| `affected_roots.py` | Which roots to act on for a target branch (applying the roots of the environments of that branch). The decision the workflows rely on. |
 | `read_plan_json.py` | Reads the plan (`terraform show -json`) and reduces it to counts and sanitized changes, without state, variable values or secrets. |
 | `run_terraform.py` | The one place that starts the `terraform` program in a folder. It knows nothing about GitHub or AWS. |
 
@@ -62,8 +65,9 @@ lib/git_diff → what changed  ─►  terraform/ → what it affects  ─►  r
 | File | What it does |
 | --- | --- |
 | `rules.yaml` | The catalog: one entry per rule (id, severity, title, explanation, parameters). The only source of truth. |
-| `code_rules.py` | The rules that read the `.tf` files: `MODULE-*`, `TAGS-*`, `ROOT-*` and `COST-001`. |
-| `plan_rules.py` | The rules that read the plan and the cost estimate: `PLAN-001` and `COST-002`. |
+| `code_rules.py` | The rules that read the `.tf` files: `MODULE-*`, `TAGS-*`, `ROOT-001`, `ROOT-002` and `ROOT-005`. |
+| `inputs_rules.py` | The rules that read a root's `inputs.yaml`: `ROOT-003`, `ROOT-004` and `POLICY-*`. The policy is data in `rules.yaml`. |
+| `plan_rules.py` | The rules that read the plan and the cost estimate: `PLAN-*`. |
 | `registry.py` | Connects a rule's `check:` name to its function, builds findings, and runs the plan rules. |
 
 The list of rules is in [The checks](checks.md).
@@ -93,12 +97,12 @@ of the step you see in GitHub.
 | File | Step | What it does |
 | --- | --- | --- |
 | `discover_roots.py` | affected configurations | The roots a PR affects and its target branch owns: gives the workflow the matrix for the plan jobs, how many there are, and the list with the reasons. |
-| `select_roots.py` | which roots (terraform.yml) | The root a `terraform.yml` run acts on: the one asked for (a manual run must also be allowed by `terraform.deploy` for its branch). |
+| `select_roots.py` | which roots (terraform.yml) | The root a `terraform.yml` run acts on: the one asked for (a manual run must also belong to an environment of its branch). |
 | `contract_check.py` | repository contract | The rules that read the code, over the whole repository; fails on any High or Critical finding. |
 | `terraform_validate.py` | terraform validate | `terraform validate` in the modules and roots a PR affects, with one shared provider cache. |
 | `terraform_tflint.py` | TFLint | TFLint, with the repository's `.tflint.hcl`, on the affected modules. |
 | `terraform_checkov.py` | Checkov | Checkov on the affected modules; publishes the number of findings. |
-| `terraform_init.py` | terraform init | Picks the branch's AWS keys, checks their account against `terraform.accounts`, checks the state bucket, then `terraform init`. |
+| `terraform_init.py` | terraform init | Picks the branch's AWS keys, checks their account against the account of its environment, checks the state bucket, then `terraform init`. |
 | `terraform_plan.py` | terraform plan | `terraform plan` of one root, saved to `tfplan`. |
 | `terraform_show_json.py` | terraform show -json | The saved plan as JSON (`terraform show -json`) reduced to a sanitized summary the review reads. The raw plan is never written to disk. |
 | `terraform_versions.py` | terraform versions | Records which Terraform and provider versions the plan used, in `versions-<slug>.json`. Informational: it never fails the job. |
@@ -131,6 +135,9 @@ Each module has the same files: `versions.tf` (Terraform and provider constraint
 | `lambda` | A Lambda function with its log group, optional VPC attachment, dead-letter queue and tracing. |
 | `eventbridge` | EventBridge rules and targets on the default or a custom bus, with retries, dead-letter queue and invoke permissions. |
 | `api-gateway` | An HTTP API with Lambda and private (VPC Link) integrations, access logs and throttling. |
+| `acm` | A public ACM certificate validated by DNS, with its Route 53 validation records. |
+| `route53/zone` | A Route 53 hosted zone, public or private, protected from deletion with records. |
+| `route53/records` | Route 53 records in an existing zone: standard records and aliases. |
 | `elb/alb` | An Application Load Balancer: HTTP/HTTPS listeners, forwarding rules, redirects, optional WAF and access logs. |
 | `elb/nlb` | A Network Load Balancer with target groups and listeners. |
 | `ec2/launch-template` | A hardened launch template (IMDSv2, encrypted root volume), shared by `ec2/instances` and `ec2/asg`. |
@@ -142,15 +149,16 @@ Each module has the same files: `versions.tf` (Terraform and provider constraint
 
 ## `infra-example/`: root configurations built from the modules
 
-A web tier in a VPC: an Application Load Balancer in front of an Auto Scaling Group of instances, backed by Aurora. `dev/web-demo` and `prod/web-demo` are two roots with their own state; they share the code and differ in `inputs.yaml`, plus the production policy that `main.tf` enforces.
+A web tier in a VPC: an Application Load Balancer in front of an Auto Scaling Group of instances, backed by Aurora. `dev/web-demo` and `prod/web-demo` are two roots with their own state; they share the code and differ in `inputs.yaml`, plus the production policy that the reviewer enforces (`POLICY-001`).
 
 | File | What it is |
 | --- | --- |
-| `main.tf` | Reads `common.yaml` and `inputs.yaml` into `locals` and validates them with preconditions (required keys, folder name, subnets per zone, the production policy). |
+| `main.tf` | Reads `inputs.yaml` and `common.yaml`, and works out the root's environment and tags (`local.tags`). It defines no values and validates nothing itself: the modules validate their own inputs and the reviewer checks the project's policy. |
 | `network.tf` | The VPC and the three security groups (load balancer, app, database). |
 | `database.tf` | The Aurora cluster. |
 | `load_balancer.tf` | The Application Load Balancer, target group and listener. |
-| `web.tf` (`ec2.tf` in prod) | The instance role, the launch template and the Auto Scaling Group. |
+| `data.tf` | The data sources of the root (the IAM policy to read the database secret). Every `data` block lives here, never in the files that create resources. |
+| `ec2.tf` | The instance role, the launch template and the Auto Scaling Group. |
 | `outputs.tf` | The values the root exposes (DNS name, endpoints, secret ARN, summary). |
 | `inputs.yaml` | The values of this root: tags, network, security rules, database, load balancer, compute. The only file that differs between dev and prod in intent. |
 | `web-user-data.sh.tftpl` | The boot script of the web instances (a placeholder web server with `/health`). |

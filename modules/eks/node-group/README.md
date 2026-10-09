@@ -5,27 +5,30 @@ EKS **managed** node groups, expressed as intent (`groups`). The module creates 
 
 ## Usage
 
-```hcl
-module "node_groups" {
-  source = "../../modules/eks/node-group"
-
-  cluster_name  = module.eks.cluster_name
-  node_role_arn = module.iam.node_role_arn
-  subnet_ids    = module.vpc.private_subnet_ids
-  tags          = local.tags
-
-  groups = local.config.node_groups   # typed; validated by the module
-}
-```
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`.
 
 ```yaml
 node_groups:
-  system:
-    instance_types: [m6i.large]
-    capacity_type: ON_DEMAND
-    min_size: 2
-    desired_size: 2
-    max_size: 4
+  groups:
+    system:
+      instance_types:
+        - m6i.large
+      capacity_type: ON_DEMAND
+      min_size: 2
+      desired_size: 2
+      max_size: 4
+```
+
+```hcl
+module "node_groups" {
+  source = "../../../modules/eks/node-group"
+
+  groups        = local.inputs.node_groups.groups     # typed; validated by the module
+  tags          = local.tags
+  cluster_name  = module.eks.cluster_name
+  node_role_arn = module.iam.node_role_arn
+  subnet_ids    = module.vpc.private_subnet_ids
+}
 ```
 
 ## Resources and tags

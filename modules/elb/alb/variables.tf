@@ -18,8 +18,8 @@ variable "tags" {
   })
 
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.tags.environment)
-    error_message = "tags.environment must be one of: dev, staging, prod."
+    condition     = can(regex("^[a-z][a-z0-9-]{1,19}$", var.tags.environment))
+    error_message = "tags.environment must be 2 to 20 characters: lowercase letters, numbers and hyphens, starting with a letter."
   }
 
   validation {
@@ -39,13 +39,20 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "subnet_ids" {
-  description = "Subnets for the load balancer (private subnets when internal)."
+variable "public_subnet_ids" {
+  description = "Public subnets of the VPC. An internet-facing load balancer (internal = false) uses them."
   type        = list(string)
+  default     = []
+}
+
+variable "private_subnet_ids" {
+  description = "Private subnets of the VPC. An internal load balancer (internal = true) uses them."
+  type        = list(string)
+  default     = []
 
   validation {
-    condition     = length(var.subnet_ids) >= 2
-    error_message = "Provide at least 2 subnets in different availability zones."
+    condition     = length(var.internal ? var.private_subnet_ids : var.public_subnet_ids) >= 2
+    error_message = "Provide at least 2 subnets in different availability zones: private_subnet_ids when internal, public_subnet_ids when not."
   }
 }
 
@@ -127,11 +134,12 @@ variable "target_groups" {
 }
 
 variable "listeners" {
-  description = "Listeners keyed by logical name. default_action.type is `forward` (needs target_group), `redirect` or `fixed_response`."
+  description = "Listeners keyed by logical name. default_action.type is `forward` (needs target_group), `redirect` or `fixed_response`. An HTTPS listener names its certificate with `certificate` (a key of `certificates`) or gives a `certificate_arn`."
   type = map(object({
     port            = number
     protocol        = optional(string, "HTTPS")
     certificate_arn = optional(string)
+    certificate     = optional(string)
     ssl_policy      = optional(string, "ELBSecurityPolicy-TLS13-1-2-2021-06")
     default_action = object({
       type         = string
@@ -156,8 +164,18 @@ variable "listeners" {
   }
 
   validation {
-    condition     = alltrue([for l in values(var.listeners) : l.protocol != "HTTPS" || l.certificate_arn != null])
-    error_message = "HTTPS listeners require certificate_arn."
+    condition     = alltrue([for l in values(var.listeners) : l.protocol != "HTTPS" || l.certificate_arn != null || l.certificate != null])
+    error_message = "HTTPS listeners require a certificate (a key of certificates) or a certificate_arn."
+  }
+
+  validation {
+    condition     = alltrue([for l in values(var.listeners) : l.certificate == null || l.certificate_arn == null])
+    error_message = "A listener names its certificate with certificate or with certificate_arn, not both."
+  }
+
+  validation {
+    condition     = alltrue([for l in values(var.listeners) : l.certificate == null || contains(keys(var.certificates), l.certificate)])
+    error_message = "A listener's certificate must be a key of certificates."
   }
 
   validation {
@@ -170,6 +188,13 @@ variable "listeners" {
   }
 }
 
+variable "certificates" {
+  description = "Certificate ARNs a listener can name with `certificate`, keyed by the name the listener uses (for example { web = module.certificate.certificate_arn })."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
 variable "rules" {
   description = "Forwarding rules keyed by logical name, attached to a key of listeners. Priorities must be unique per listener."
   type = map(object({
@@ -179,7 +204,8 @@ variable "rules" {
     path_patterns = optional(list(string), [])
     host_headers  = optional(list(string), [])
   }))
-  default = {}
+  default  = {}
+  nullable = false
 
   validation {
     condition     = alltrue([for r in values(var.rules) : r.priority >= 1 && r.priority <= 50000])

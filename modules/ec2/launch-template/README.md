@@ -5,15 +5,23 @@ Hardened EC2 launch template shared by `ec2/instances` and `ec2/asg`: IMDSv2 onl
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+web_template:
+  name: "${project}-${environment}-web"
+  ami_id: ami-0123456789abcdef0     # pin it in production
+```
+
 ```hcl
 module "web_template" {
   source = "../../../modules/ec2/launch-template"
 
-  name                      = "payments-dev-web"
+  name                      = templatestring(local.inputs.web_template.name, local.tags)
+  ami_id                    = local.inputs.web_template.ami_id
+  tags                      = local.tags
   security_group_ids        = [module.web_sg.security_group_id]
   iam_instance_profile_name = module.web_role.instance_profile_name
-  ami_id                    = "ami-0123456789abcdef0" # pin in production
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "payments" }
 }
 ```
 

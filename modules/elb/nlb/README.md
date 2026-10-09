@@ -5,17 +5,30 @@ Network Load Balancer with target groups and listeners. Internal and deletion-pr
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+nlb:
+  name: "${project}-${environment}"
+  target_groups:
+    app:
+      port: 8080
+  listeners:
+    http:
+      port: 80
+      target_group: app
+```
+
 ```hcl
 module "nlb" {
   source = "../../../modules/elb/nlb"
 
-  name       = "payments-dev"
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnet_ids
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "payments" }
-
-  target_groups = { app = { port = 8080 } }
-  listeners     = { http = { port = 80, target_group = "app" } }
+  name          = templatestring(local.inputs.nlb.name, local.tags)
+  target_groups = local.inputs.nlb.target_groups
+  listeners     = local.inputs.nlb.listeners
+  tags          = local.tags
+  vpc_id        = module.vpc.vpc_id
+  subnet_ids    = module.vpc.private_subnet_ids
 }
 ```
 

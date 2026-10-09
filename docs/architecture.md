@@ -24,7 +24,7 @@ No folder name is assumed. Roots come from `terraform.roots` (globs) or are infe
 | --- | --- |
 | A file in the root changed | `infra-example/dev/web-demo/network.tf` |
 | A module it uses changed, directly or through another module | `modules/vpc/main.tf` |
-| A shared file it reads changed (`file()`, `templatefile()` with `../` paths) | `common.yaml` |
+| A shared file it reads changed (`file()`, `templatefile()` with `../` paths) | `../shared/policy.json` |
 | `.terraform-version` changed | every root |
 
 `*.md` affects nothing. Unaffected roots are never initialised, planned, validated or applied. The same logic gives the affected modules (`Repo.affected_modules`), which `validate`, TFLint and Checkov run on.
@@ -33,10 +33,10 @@ No folder name is assumed. Roots come from `terraform.roots` (globs) or are infe
 
 | Branch | Keys (secrets) | Expected account |
 | --- | --- | --- |
-| `main` (production) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | `terraform.accounts.main` |
-| `develop` and any other branch | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | `terraform.accounts.develop` |
+| `main` (production) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | the `account` of the environments with `branch: main` |
+| `develop` and any other branch | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | the `account` of the environments with `branch: develop` |
 
-The branch picks the keys (the target branch for a PR, the selected branch for a manual run). Before `init` the pipeline asks AWS for the keys' account and compares it with `terraform.accounts`; a mismatch, a missing secret or a missing id stops the run before anything is touched. `terraform.deploy.<branch>` lists the roots each branch may plan, review and apply, so a run on `develop` never touches production roots even when they share modules.
+The branch picks the keys (the target branch for a PR, the selected branch for a manual run). Before `init` the pipeline asks AWS for the keys' account and compares it with the `account` of the environment that names the branch in `terraform.environments`; a mismatch, a missing secret or a missing id stops the run before anything is touched. The `roots` of the environments of a branch are the roots it may plan, review and apply, so a run on `develop` never touches production roots even when they share modules.
 
 ## State
 
@@ -50,7 +50,7 @@ One state per root: key `<root path>/terraform.tfstate` in the bucket `<project>
 
 ## The reviewer
 
-`tools/reviewer`: findings from contract checks on the code (`rules/rules.yaml` + `rules/code_rules.py`) and checks on the plan and cost, then:
+`tools`: findings from contract checks on the code (`rules/rules.yaml` + `rules/code_rules.py`) and checks on the plan and cost, then:
 
 - **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed (fmt, ruff and mypy, validate, TFLint, the repository contract), else `PASS`. Checkov only warns for now. Risk is the highest severity found. A skipped check is not a failure.
 - **`PLAN-001`:** a plan that destroys or replaces a stateful resource is CRITICAL in a protected root (every root in a PR into production) and HIGH elsewhere.
@@ -73,11 +73,8 @@ Off by default (`ai.enabled`). It receives one sanitized payload (verdict, affec
 | `project` | First part of the state bucket name; also used for tags and names |
 | `backend.encrypt`, `backend.use_lockfile` | Passed to `terraform init` |
 | `ai.enabled` | Turns the AI summary on |
-| `terraform.accounts.<develop\|main>` | **Required.** AWS account id of that branch's keys |
-| `terraform.deploy.<branch>` | Globs of the roots that branch may plan and apply |
 | `terraform.roots`, `terraform.modules` | Pin the roots, or the modules folders (default `modules`) |
-| `terraform.protected` | Roots where destroying stateful resources is CRITICAL |
-| `terraform.conventions.layout` | Opt-in rules ROOT-001 / ROOT-002 for a family of roots |
+| `terraform.environments.<name>` | **Required.** One entry per environment: `branch` (the branch that deploys it), `account` (AWS account id of that branch's keys) and `roots` (the roots that belong to it). A root takes its `environment` tag from here, and an environment deployed from `main` must meet `POLICY-001`. Environments of one branch share its keys, so they name the same account |
 
 ## Code map
 
@@ -104,7 +101,7 @@ Separately, the *Dependabot alerts* of the repository warn when a dependency has
 - Infracost may not price resources it cannot resolve in a plan (for example an Auto Scaling Group whose launch template is created in the same plan); the cost section lists what it could not price.
 - Roots are applied in path order; dependencies between roots are not modelled.
 - Production means the repository's default branch.
-- There are no unit tests for modules or for the reviewer: correctness rests on `validate`, the contract, the plan and the preconditions. The reviewer's Python is checked with ruff and mypy on every PR.
+- There are no unit tests for modules or for the reviewer: correctness rests on `validate`, the contract, the plan and the modules' own validations. The reviewer's Python is checked with ruff and mypy on every PR.
 - The tag check on planned resources is not shown in the comment; tags are enforced on the code by `TAGS-001`.
 
 ---

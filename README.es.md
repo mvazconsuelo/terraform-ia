@@ -34,7 +34,7 @@ No asume nombres de carpeta: funciona igual con `infra/web`, `terraform/networki
 | | |
 | --- | --- |
 | **Descubrimiento de raíces afectadas** | Un grafo de llamadas entre módulos construido con las rutas locales de `source`. Las raíces editadas, los módulos editados (de forma transitiva) y los archivos compartidos editados se traducen a raíces. La documentación no dispara nada. |
-| **Rama → cuenta** | `develop` y `main` usan llaves AWS distintas. Antes de `init`, el pipeline compara la cuenta de las llaves con `terraform.accounts` y se detiene si no coinciden. |
+| **Rama → cuenta** | `develop` y `main` usan llaves AWS distintas. Antes de `init`, el pipeline compara la cuenta de las llaves con la que `terraform.environments` nombra para la rama y se detiene si no coinciden. |
 | **Veredicto determinista** | `REQUEST_CHANGES` ante cualquier hallazgo HIGH o CRITICAL o un check fallido; si no, `PASS`. La IA nunca participa. |
 | **Reviewer** | Reglas (límites de módulos, tags obligatorios, plan y costo contra los estándares) sobre `terraform`, TFLint, Checkov e Infracost. |
 | **Resumen de IA** | Un texto validado contra un esquema y verificado: cada recurso, archivo y precio que menciona se contrasta con la evidencia. Apagado por defecto; un modelo que falla nunca cambia el resultado. |
@@ -83,6 +83,9 @@ Cada módulo tiene su propio README con uso, recursos, entradas, salidas, ciclo 
 | [`lambda`](modules/lambda/README.md) | Función Lambda con su log group, conexión opcional a VPC, cola de mensajes fallidos y trazado. |
 | [`eventbridge`](modules/eventbridge/README.md) | Reglas y destinos de EventBridge con reintentos, cola de mensajes fallidos y permisos de invocación. |
 | [`api-gateway`](modules/api-gateway/README.md) | HTTP API con integraciones Lambda y privadas (VPC Link), logs de acceso y limitación de tráfico. |
+| [`acm`](modules/acm/README.md) | Certificado público de ACM validado por DNS, con sus registros de validación en Route 53. |
+| [`route53/zone`](modules/route53/zone/README.md) | Hosted zone de Route 53, pública o privada, protegida contra el borrado si tiene registros. |
+| [`route53/records`](modules/route53/records/README.md) | Registros de Route 53 en una zona existente: registros estándar y alias. |
 | [`elb/alb`](modules/elb/alb/README.md) | Application Load Balancer: listeners HTTP/HTTPS, reglas, redirecciones, WAF y logs de acceso opcionales. |
 | [`elb/nlb`](modules/elb/nlb/README.md) | Network Load Balancer con target groups y listeners. |
 | [`ec2/launch-template`](modules/ec2/launch-template/README.md) | Launch template endurecido (IMDSv2, volumen raíz cifrado), compartido por `ec2/instances` y `ec2/asg`. |
@@ -107,11 +110,12 @@ Para ejecutar el pipeline en tu propio repositorio: [Instalación](docs/es/insta
 ```text
 modules/              Módulos AWS reutilizables (un README cada uno)
 infra-example/        Raíces de ejemplo: dev/web-demo y prod/web-demo
-tools/reviewer/       El reviewer: ci/ (un archivo por paso del workflow) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
+tools/       El reviewer: ci/ (un archivo por paso del workflow) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
 .github/workflows/    pull-request.yml (checks, planes, comentario) · terraform.yml (plan / apply)
-common.yaml           proyecto, state, interruptor de IA, cuenta AWS y raíces desplegables por rama
+common.yaml           proyecto, state, interruptor de IA y los ambientes (rama, cuenta AWS, raíces)
 docs/                 Instalación, arquitectura, mapa de archivos, los checks, estándar de módulos (docs/es/ en español)
-.claude/agents/       terraform-ia-engineer: asistente que conoce cómo se construye este repositorio (propone, nunca ejecuta comandos)
+.claude/              agente terraform-ia-engineer (propone, nunca ejecuta comandos) y las skills new-module, new-rule y new-root
+CLAUDE.md            las convenciones que Claude Code lee en cada sesión
 ```
 
 </details>

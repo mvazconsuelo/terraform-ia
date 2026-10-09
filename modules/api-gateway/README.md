@@ -5,16 +5,32 @@ API Gateway **HTTP API** with Lambda and private (VPC Link V2 -> NLB/ALB listene
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+api:
+  name: "${project}-${environment}"
+  routes:
+    app:
+      route_key: ANY /app/{proxy+}
+      integration_type: vpc_link
+```
+
 ```hcl
 module "api" {
-  source = "../../modules/api-gateway"
+  source = "../../../modules/api-gateway"
 
-  name = "payments-dev"
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "payments" }
+  name = templatestring(local.inputs.api.name, local.tags)
+  tags = local.tags
 
-  vpc_link = { subnet_ids = module.vpc.private_subnet_ids, security_group_ids = [module.vpclink_sg.security_group_id] }
+  vpc_link = {
+    subnet_ids         = module.vpc.private_subnet_ids
+    security_group_ids = [module.vpclink_sg.security_group_id]
+  }
+
+  # The route comes from inputs.yaml; its listener is another module's output, so it is wired here.
   routes = {
-    orders = { route_key = "ANY /orders/{proxy+}", integration_type = "vpc_link", listener_arn = module.nlb.listener_arns["http"] }
+    for key, route in local.inputs.api.routes : key => merge(route, { listener_arn = module.nlb.listener_arns["http"] })
   }
 }
 ```

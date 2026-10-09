@@ -5,22 +5,36 @@ Auto Scaling Group on top of a launch template: rolling instance refresh, tag pr
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+web:
+  name: "${project}-${environment}-web"
+  min_size: 2
+  desired_size: 2
+  max_size: 6
+  health_check_type: ELB
+  scaling_policies:
+    cpu:
+      predefined_metric: ASGAverageCPUUtilization
+      target_value: 60
+```
+
 ```hcl
 module "web" {
   source = "../../../modules/ec2/asg"
 
-  name                    = "payments-dev-web"
+  name                    = templatestring(local.inputs.web.name, local.tags)
+  min_size                = local.inputs.web.min_size
+  desired_size            = local.inputs.web.desired_size
+  max_size                = local.inputs.web.max_size
+  health_check_type       = local.inputs.web.health_check_type
+  scaling_policies        = local.inputs.web.scaling_policies
+  tags                    = local.tags
   subnet_ids              = module.vpc.private_subnet_ids
   launch_template_id      = module.web_template.launch_template_id
   launch_template_version = module.web_template.latest_version
-  min_size                = 2
-  desired_size            = 2
-  max_size                = 6
   target_group_arns       = [module.nlb.target_group_arns["app"]]
-  health_check_type       = "ELB"
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "payments" }
-
-  scaling_policies = { cpu = { predefined_metric = "ASGAverageCPUUtilization", target_value = 60 } }
 }
 ```
 

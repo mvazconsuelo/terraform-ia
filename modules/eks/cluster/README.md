@@ -5,30 +5,48 @@ EKS control plane: private API endpoint by default, access entries (no `aws-auth
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+# ---------- cluster_role ----------
+cluster_role:
+  name: "${project}-${environment}-eks"
+  assume_role_services:
+    - eks.amazonaws.com
+  managed_policy_arns:
+    - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+# ---------- eks ----------
+eks:
+  name: "${project}-${environment}"
+  kubernetes_version: "1.31"        # choose a version in standard support
+  access_entries:
+    admins:
+      principal_arn: arn:aws:iam::111122223333:role/platform-admins
+      policies:
+        admin:
+          policy_arn: arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy
+```
+
 ```hcl
 module "cluster_role" {
-  source               = "../../../modules/iam"
-  name                 = "shop-dev-eks"
-  assume_role_services = ["eks.amazonaws.com"]
-  managed_policy_arns  = ["arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"]
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "shop" }
+  source = "../../../modules/iam"
+
+  name                 = templatestring(local.inputs.cluster_role.name, local.tags)
+  assume_role_services = local.inputs.cluster_role.assume_role_services
+  managed_policy_arns  = local.inputs.cluster_role.managed_policy_arns
+  tags                 = local.tags
 }
 
 module "eks" {
   source = "../../../modules/eks/cluster"
 
-  name               = "shop-dev"
-  kubernetes_version = "1.31"                       # choose a version in standard support
+  name               = templatestring(local.inputs.eks.name, local.tags)
+  kubernetes_version = local.inputs.eks.kubernetes_version
+  access_entries     = local.inputs.eks.access_entries
+  tags               = local.tags
   cluster_role_arn   = module.cluster_role.role_arn
   subnet_ids         = module.vpc.private_subnet_ids
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "shop" }
-
-  access_entries = {
-    admins = {
-      principal_arn = "arn:aws:iam::111122223333:role/platform-admins"
-      policies      = { admin = { policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" } }
-    }
-  }
 
   depends_on = [module.cluster_role]
 }

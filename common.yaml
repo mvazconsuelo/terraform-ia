@@ -1,32 +1,42 @@
-# Values shared by every Terraform configuration. Single source for the project name and the
-# remote-state settings. main.tf and the workflows read this file.
-project: shop
+# Settings of the whole project: the project name, the remote state, the AI switch and the environments (branch, AWS account and roots).
+# The pipeline and the reviewer read this file, and so does each root, for its `project` and its `environment` (the rest of its values,
+# owner and cost center included, are in its own inputs.yaml).
 
+# -------------------- project --------------------
+project: terraform-ia
+
+# -------------------- backend --------------------
 backend:
   encrypt: true
   use_lockfile: true # S3 native lock (Terraform >= 1.11); no DynamoDB table needed
 
+# -------------------- ai --------------------
 # Optional AI analysis (Gemini) in the PR comment. Off by default: nothing leaves the repository until you enable it.
 # It also needs the GEMINI_API_KEY secret. The deterministic review (the authority) works the same either way.
 ai:
   enabled: true
 
+# -------------------- terraform --------------------
 # Terraform root configurations (folders with their own state) are discovered automatically: a folder nobody calls as a
 # module that has resources, modules, a provider or a backend. Only the ones a change affects are planned and applied.
-# Optional settings, all off until you add them under a `terraform:` key:
-#   roots:      [infra/*]                  pin the roots instead of inferring them
-#   modules:    [modules]                  folders with shared modules (default)
-#   protected:  [infra/db]                 destroying stateful resources there is CRITICAL (PRs into main protect all of them)
-#   accounts:   {develop: "<id>", main: "<id>"}  REQUIRED to run the pipeline: the AWS account of each branch's keys
-#   deploy:     {develop: [infra-example/dev/*]}  roots each branch may APPLY on push (globs); PRs still plan everything they affect;
-#                                      a branch with no entry applies every root the push affected
-#   conventions.layout: {roots, files, template_suffixes, identical}   enables rules ROOT-001 / ROOT-002
+# Optional settings under `terraform:`:
+#   roots:    [infra/*]    pin the roots instead of inferring them
+#   modules:  [modules]    folders with shared modules (default)
+#
+# `environments` is where each environment is defined, once:
+#   branch:   the branch that deploys it (the branch only plans and applies the roots of its environments)
+#   account:  the AWS account id of that branch's keys; the pipeline stops if the keys belong to another account
+#   roots:    the root folders that belong to it; a root takes its `environment` tag from here
+# Environments of the same branch share its keys, so they must name the same account.
 terraform:
-  accounts: # the AWS account id of each branch's keys; the pipeline stops if the keys belong to another account
-    develop: "785995043299"
-    main: "<prod-account-id>"
-  deploy:
-    develop:
-      - infra-example/dev/*
-    main:
-      - infra-example/prod/*
+  environments:
+    dev:
+      branch: develop
+      account: "785995043299"
+      roots:
+        - infra-example/dev/web-demo
+    prod:
+      branch: main
+      account: "<prod-account-id>"
+      roots:
+        - infra-example/prod/web-demo
