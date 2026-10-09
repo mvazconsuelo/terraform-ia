@@ -1,0 +1,26 @@
+name: Improvement
+description: A module, a rule or a change you would like
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What you need and why
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options:
+        - A new module
+        - A new rule for the reviewer
+        - A change to an existing module
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How you would do it
+      description: Optional. A module comes with its test, a rule with its test and the docs in English and Spanish.

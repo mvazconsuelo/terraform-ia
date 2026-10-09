@@ -33,7 +33,7 @@ the reviewer enforces (`POLICY-001`).
 
 | Setting | Where |
 | --- | --- |
-| Project name, environments (and their roots), state settings, AI switch, accounts | `common.yaml` at the repository root |
+| Project name, environments (and their roots), state settings, AI switch | `common.yaml` at the repository root |
 | Owner, cost center and everything else about the environment | `inputs.yaml` |
 | Names of the components | a `name` in each block of `inputs.yaml`, the full physical name (`terraform-ia-dev-db`); the `.tf` only reads it |
 | Mandatory tags | `owner` and `cost_center` in the `tags:` block of each root's `inputs.yaml` (each project sets its own), plus the `project` and the `environment` from `common.yaml`; `main.tf` joins them in `local.tags` and every module call passes `tags = local.tags` |
@@ -97,8 +97,8 @@ and zone (`example.com` today, an example) and a pinned `compute.ami_id` in prod
 
 ## Adding an environment
 
-Copy `infra-example/dev/web-demo` to `infra-example/<environment>/web-demo`, edit the values, and add the new environment under `terraform.environments` in `common.yaml` with its `branch`, its `account` and its `roots`. The bucket and the state key
-follow from the folder and the account.
+Copy `infra-example/dev/web-demo` to `infra-example/<environment>/web-demo`, edit the values, and add the new environment under `terraform.environments` in `common.yaml` with its `branch` and its `roots`. The bucket and the state key
+follow from the folder and the account of its branch (a repository variable, see [Setup](../docs/install.md)).
 
 ---
 

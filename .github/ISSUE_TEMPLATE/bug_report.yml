@@ -1,0 +1,27 @@
+name: Bug
+description: Something does not work as the documentation says
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you got.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where
+      options:
+        - A module (modules/)
+        - The reviewer or a rule (tools/)
+        - A workflow (.github/workflows)
+        - The documentation
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: The link to the failed job or the pull request comment. Remove any key, token or account id before pasting.
