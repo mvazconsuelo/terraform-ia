@@ -17,3 +17,4 @@ locals {
   private_azs  = { for i, cidr in var.private_subnet_cidrs : var.availability_zones[i] => cidr }
   nat_az_index = local.nat_enabled ? slice(var.availability_zones, 0, local.nat_count) : []
 }
+# touch to see the full review
