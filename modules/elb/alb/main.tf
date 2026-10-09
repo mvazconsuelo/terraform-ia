@@ -2,7 +2,7 @@ resource "aws_lb" "this" {
   name                       = var.name
   load_balancer_type         = "application"
   internal                   = var.internal
-  subnets                    = var.subnet_ids
+  subnets                    = var.internal ? var.private_subnet_ids : var.public_subnet_ids
   security_groups            = var.security_group_ids
   enable_deletion_protection = var.enable_deletion_protection
   idle_timeout               = var.idle_timeout
@@ -69,7 +69,7 @@ resource "aws_lb_listener" "this" {
   load_balancer_arn = aws_lb.this.arn
   port              = each.value.port
   protocol          = each.value.protocol
-  certificate_arn   = each.value.certificate_arn
+  certificate_arn   = local.listener_certificate_arns[each.key]
   ssl_policy        = each.value.protocol == "HTTPS" ? each.value.ssl_policy : null
 
   default_action {

@@ -5,18 +5,35 @@ Reusable VPC with a private tier (always) and an optional public tier, per-AZ pr
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+network:
+  name: "${project}-${environment}"
+  cidr_block: 10.0.0.0/16
+  availability_zones:
+    - eu-west-1a
+    - eu-west-1b
+  public_subnet_cidrs:
+    - 10.0.0.0/24
+    - 10.0.1.0/24
+  private_subnet_cidrs:
+    - 10.0.10.0/24
+    - 10.0.11.0/24
+  nat_gateway_mode: single
+```
+
 ```hcl
 module "vpc" {
-  source = "../../modules/vpc"
+  source = "../../../modules/vpc"
 
-  name       = "payments-dev"
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "payments" }
-
-  cidr_block           = "10.0.0.0/16"
-  availability_zones   = ["eu-west-1a", "eu-west-1b"]
-  public_subnet_cidrs  = ["10.0.0.0/24", "10.0.1.0/24"]
-  private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24"]
-  nat_gateway_mode     = "single"
+  name                 = templatestring(local.inputs.network.name, local.tags)
+  cidr_block           = local.inputs.network.cidr_block
+  availability_zones   = local.inputs.network.availability_zones
+  public_subnet_cidrs  = local.inputs.network.public_subnet_cidrs
+  private_subnet_cidrs = local.inputs.network.private_subnet_cidrs
+  nat_gateway_mode     = local.inputs.network.nat_gateway_mode
+  tags                 = local.tags
 }
 ```
 

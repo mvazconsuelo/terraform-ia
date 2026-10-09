@@ -1,19 +1,19 @@
 # DEV environment: a single Terraform configuration (infra-example/dev/web-demo) reads this file.
 # Block-style YAML only (no braces, no inline lists). Values are validated by the modules' typed inputs.
-# Project and region are in the repo-root common.yaml; the mandatory tags are project + the three values below.
+# Region is the AWS_REGION secret; the project name is also in the repo-root common.yaml.
 
-environment: dev # must equal the parent folder name (checked by main.tf)
-owner: platform-team
-cost_center: cc-1234
+# -------------------- tags --------------------
+# What is specific to this root in the mandatory tags: its owner and cost center. The `project` and the `environment` come from
+# common.yaml (the environment is the one this root is listed under in terraform.environments).
+tags:
+  owner: platform-team
+  cost_center: cc-1234
 
-# Application and database ports. Single definition: used by the security groups, the target group, the database and the instances.
-ports:
-  app: 8080
-  db: 5432
-
+# -------------------- network --------------------
 network:
+  name: "${project}-${environment}"
   cidr_block: 10.20.0.0/16
-  # nat_gateway_mode: single # none (default, no NAT: no cost, but the private subnets have no internet) | single | per_az
+  nat_gateway_mode: none # none (no NAT: no cost, but the private subnets have no internet) | single | per_az
   availability_zones:
     - us-east-1a
     - us-east-1b
@@ -24,50 +24,60 @@ network:
     - 10.20.10.0/24
     - 10.20.11.0/24
 
-# One security group per tier. `port` is a number or a named port: app | db | https | http.
+# -------------------- security_groups --------------------
+# One security group per tier. `port` is a number.
 # A rule has either `cidr_ipv4` (`vpc` = the VPC CIDR) or `source_sg` (alb for app, app for db).
 security_groups:
+  # ---------- alb ----------
   alb:
+    name: "${project}-${environment}-alb"
     description: Application load balancer
     allow_public_ingress: true
     ingress:
       http:
         description: HTTP from the internet
-        port: http
+        port: 80
         cidr_ipv4: 0.0.0.0/0
     egress:
       to_app:
         description: Forward to the app tier
-        port: app
+        port: 8080
         cidr_ipv4: vpc
+  # ---------- app ----------
   app:
+    name: "${project}-${environment}-app"
     description: Application instances
     ingress:
       from_alb:
         description: Traffic from the ALB
-        port: app
+        port: 8080
         source_sg: alb
     egress:
       https_out:
         description: HTTPS to AWS APIs and package mirrors via NAT
-        port: https
+        port: 443
         cidr_ipv4: 0.0.0.0/0
       to_db:
         description: Database traffic
-        port: db
+        port: 5432
         cidr_ipv4: vpc
+  # ---------- db ----------
   db:
+    name: "${project}-${environment}-db"
     description: Aurora database
     ingress:
       from_app:
         description: Database traffic from the app tier
-        port: db
+        port: 5432
         source_sg: app
 
+# -------------------- database --------------------
 database:
+  name: "${project}-${environment}-db"
   engine: postgresql # postgresql | mysql
   engine_version: "16.4" # choose a version Aurora currently supports
-  database_name: shop
+  port: 5432
+  database_name: app
   instance_class: db.t4g.medium
   backup_retention_days: 3
   deletion_protection: false
@@ -75,18 +85,31 @@ database:
   instances:
     "1":
       promotion_tier: 0
+  serverless_v2: # null = provisioned instances; set min_capacity and max_capacity for Aurora Serverless v2
   cluster_parameters:
     rds.force_ssl:
       value: "1"
 
+# -------------------- certificate --------------------
+certificate:
+  name: "${project}-${environment}-web"
+  domain_name: example.com # example only: use a domain you own
+  subject_alternative_names:
+    - "*.example.com"
+  zone_id: # Route 53 hosted zone ID of the domain; empty creates no validation records and does not wait
+
+# -------------------- alb --------------------
 alb:
+  name: "${project}-${environment}"
   internal: false # false = internet-facing in public subnets, true = private subnets
   deletion_protection: false
+  rules: # none; each one names a listener, a priority, a target_group and path_patterns or host_headers
   target_groups:
     web:
-      port: app
+      port: 8080
       target_type: instance
-      health_check_path: /health
+      health_check:
+        path: /health
   listeners:
     http:
       port: 80
@@ -95,15 +118,19 @@ alb:
         type: forward
         target_group: web
 
+# -------------------- instance_role --------------------
 instance_role:
+  name: "${project}-${environment}-web"
   create_instance_profile: true
-  allow_read_db_secret: true
   assume_role_services:
     - ec2.amazonaws.com
   managed_policy_arns:
     - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
 
+# -------------------- compute --------------------
 compute:
+  name: "${project}-${environment}-web"
+  port: 8080 # the port the web instances serve (the target group and the security group use the same one)
   target_group: web # ALB target group (alb.target_groups) the Auto Scaling Group registers with
   instance_type: t3.micro # free-tier eligible instance type
   ami_id: null # null resolves the latest Amazon Linux 2023; pin an AMI in production

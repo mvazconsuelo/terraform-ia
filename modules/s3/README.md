@@ -5,14 +5,24 @@ Private, encrypted, versioned S3 bucket with TLS-only policy and optional lifecy
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+artifacts:
+  name: "${project}-${environment}-artifacts"
+  lifecycle_rules:
+    logs:
+      prefix: logs/
+      expiration_days: 30
+```
+
 ```hcl
 module "artifacts" {
-  source = "../../modules/s3"
+  source = "../../../modules/s3"
 
-  name       = "payments-dev-artifacts"
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "payments" }
-
-  lifecycle_rules = { logs = { prefix = "logs/", expiration_days = 30 } }
+  name            = templatestring(local.inputs.artifacts.name, local.tags)
+  lifecycle_rules = local.inputs.artifacts.lifecycle_rules
+  tags            = local.tags
 }
 ```
 

@@ -34,7 +34,7 @@ No folder names are assumed: it works the same for `infra/web`, `terraform/netwo
 | | |
 | --- | --- |
 | **Affected-root discovery** | A module-call graph built from local `source` paths. Edited roots, edited modules (transitively) and edited shared files are mapped to roots. Docs trigger nothing. |
-| **Branch → account** | `develop` and `main` use different AWS keys. Before `init`, the pipeline compares the keys' account with `terraform.accounts` and stops on a mismatch. |
+| **Branch → account** | `develop` and `main` use different AWS keys. Before `init`, the pipeline compares the keys' account with the one `terraform.environments` names for the branch and stops on a mismatch. |
 | **Deterministic verdict** | `REQUEST_CHANGES` on any HIGH or CRITICAL finding or failed check; otherwise `PASS`. The AI never takes part. |
 | **Reviewer** | Rules (module boundaries, mandatory tags, plan and cost against the standards) on top of `terraform`, TFLint, Checkov and Infracost. |
 | **AI summary** | One text, schema-validated and grounded: every resource, file and price it mentions is checked against the evidence. Off by default; a failing model never changes the result. |
@@ -83,6 +83,9 @@ Each module has its own README with usage, resources, inputs, outputs, lifecycle
 | [`lambda`](modules/lambda/README.md) | Lambda function with its log group, optional VPC attachment, dead-letter queue and tracing. |
 | [`eventbridge`](modules/eventbridge/README.md) | EventBridge rules and targets with retries, dead-letter queue and invoke permissions. |
 | [`api-gateway`](modules/api-gateway/README.md) | HTTP API with Lambda and private (VPC Link) integrations, access logs and throttling. |
+| [`acm`](modules/acm/README.md) | Public ACM certificate validated by DNS, with its Route 53 validation records. |
+| [`route53/zone`](modules/route53/zone/README.md) | Route 53 hosted zone, public or private, protected from deletion with records. |
+| [`route53/records`](modules/route53/records/README.md) | Route 53 records in an existing zone: standard records and aliases. |
 | [`elb/alb`](modules/elb/alb/README.md) | Application Load Balancer: HTTP/HTTPS listeners, rules, redirects, optional WAF and access logs. |
 | [`elb/nlb`](modules/elb/nlb/README.md) | Network Load Balancer with target groups and listeners. |
 | [`ec2/launch-template`](modules/ec2/launch-template/README.md) | Hardened launch template (IMDSv2, encrypted root volume), shared by `ec2/instances` and `ec2/asg`. |
@@ -107,11 +110,12 @@ To run the pipeline on your own repository: [Setup](docs/install.md).
 ```text
 modules/              Reusable AWS modules (README each)
 infra-example/        Example roots: dev/web-demo and prod/web-demo
-tools/reviewer/       The reviewer: ci/ (one file per workflow step) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
+tools/       The reviewer: ci/ (one file per workflow step) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
 .github/workflows/    pull-request.yml (checks, plans, comment) · terraform.yml (plan / apply)
-common.yaml           project, state settings, AI switch, AWS account and deployable roots per branch
+common.yaml           project, state settings, AI switch, and the environments (branch, AWS account, roots)
 docs/                 Setup, architecture, file map, the checks, module standard
-.claude/agents/       terraform-ia-engineer: assistant that knows how this repository is built (proposes, never runs commands)
+.claude/              terraform-ia-engineer agent (proposes, never runs commands) and the skills new-module, new-rule and new-root
+CLAUDE.md            the conventions Claude Code reads in every session
 ```
 
 </details>

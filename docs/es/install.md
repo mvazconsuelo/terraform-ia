@@ -19,29 +19,32 @@ Protege `main` (pull request obligatorio y status checks requeridos): fusionar n
 ## 2. `common.yaml`
 
 ```yaml
-project: shop
+project: terraform-ia
 backend:
   encrypt: true
   use_lockfile: true
 ai:
   enabled: false                # true cuando exista GEMINI_API_KEY
 terraform:
-  accounts:                     # id de la cuenta AWS de las llaves de cada rama; el pipeline se detiene si no coincide
-    develop: "111111111111"
-    main: "222222222222"
-  deploy:                       # raíces que cada rama puede planificar, revisar y desplegar (globs)
-    develop:
-      - infra-example/dev/*
-    main:
-      - infra-example/prod/*
+  environments:                 # cada ambiente, definido una vez: la rama que lo despliega, su cuenta AWS y sus raíces
+    dev:
+      branch: develop
+      account: "111111111111"   # el pipeline se detiene si las llaves de esa rama son de otra cuenta
+      roots:
+        - infra-example/dev/web-demo
+    prod:
+      branch: main
+      account: "222222222222"
+      roots:
+        - infra-example/prod/web-demo
 ```
 
-Todo lo que está bajo `terraform:` salvo `accounts` es opcional. Ver [arquitectura](architecture.md#configuración).
+En `terraform:`, `environments` es obligatorio (cada uno necesita su `branch`, `account` y `roots`); el resto es opcional. Ver [arquitectura](architecture.md#configuración).
 
 ## 3. Bucket de state (una vez por cuenta y región)
 
 ```bash
-B=shop-tfstate-<account id>-<region>
+B=terraform-ia-tfstate-<account id>-<region>
 aws s3api create-bucket --bucket $B --region <region>      # fuera de us-east-1 agrega: --create-bucket-configuration LocationConstraint=<region>
 aws s3api put-bucket-versioning --bucket $B --versioning-configuration Status=Enabled
 aws s3api put-public-access-block --bucket $B --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
@@ -49,28 +52,30 @@ aws s3api put-public-access-block --bucket $B --public-access-block-configuratio
 
 ## 4. Secrets (a nivel de repositorio)
 
-| Secret | Obligatorio | Uso |
-| --- | --- | --- |
-| `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | sí | `develop` y cualquier otra rama |
-| `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | sí | `main` (producción) |
-| `AWS_REGION` | sí | Región del provider y del bucket de state |
-| `INFRACOST_API_KEY` | no | Sección de costos (`infracost auth login` da una llave gratuita) |
-| `GEMINI_API_KEY` | no | Resumen de IA (Google AI Studio) |
-| `GEMINI_MODEL` | no | Reemplaza el modelo por defecto; déjalo sin definir si no lo necesitas |
-| `GEMINI_FALLBACK_MODEL` | no | Un segundo modelo, que se usa solo cuando el principal está saturado (503) o sin cuota (429); las cuotas son por modelo |
+| Secret | Obligatorio | Uso | Dónde obtenerlo |
+| --- | --- | --- | --- |
+| `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | sí | `develop` y cualquier otra rama | [Consola IAM de AWS](https://console.aws.amazon.com/iam/home#/users) → el usuario → *Security credentials* → *Create access key*, en la cuenta de **dev** · [guía](https://docs.aws.amazon.com/IAM/latest/UserGuide/access-key-self-managed.html) |
+| `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | sí | `main` (producción) | La misma consola, en la cuenta de **producción** |
+| `AWS_REGION` | sí | Región del provider y del bucket de state | A tu elección, por ejemplo `us-east-1` |
+| `INFRACOST_API_KEY` | no | Sección de costos | [Panel de Infracost](https://dashboard.infracost.io) (gratis) · [documentación](https://www.infracost.io/docs/) |
+| `GEMINI_API_KEY` | no | Resumen de IA | [Google AI Studio → API keys](https://aistudio.google.com/apikey) |
+| `GEMINI_MODEL` | no | Reemplaza el modelo por defecto; déjalo sin definir si no lo necesitas | [Modelos de Gemini](https://ai.google.dev/gemini-api/docs/models) · [límites de uso](https://ai.google.dev/gemini-api/docs/rate-limits) |
+| `GEMINI_FALLBACK_MODEL` | no | Un segundo modelo, que se usa solo cuando el principal está saturado (503) o sin cuota (429); las cuotas son por modelo | Las mismas listas de arriba |
+
+Dónde guardarlos: `https://github.com/<owner>/<repo>/settings/secrets/actions` (reemplaza `<owner>/<repo>`) · [documentación de GitHub sobre secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets) · [`gh secret set`](https://cli.github.com/manual/gh_secret_set).
 
 ```bash
 gh secret set AWS_ACCESS_KEY_ID_DEVELOP
 ```
 
-Nunca subas llaves al repositorio; rota las que se hayan expuesto.
+`gh secret set` guarda un secret por comando y te pide el valor, así que no queda en el historial de tu terminal. Nunca subas llaves al repositorio; rota las que se hayan expuesto.
 
 
 ## 5. Abre un PR
 
 Crea una rama desde `develop`, cambia algo pequeño y abre un PR hacia `develop`. Obtienes un check por cada aspecto, un `plan` de solo lectura por cada raíz afectada y un comentario con el veredicto, el plan, el costo y el ambiente al que llega. **Fusionar nunca toca AWS.** Para desplegar, ejecuta `terraform.yml` a mano (abajo); el primer apply crea recursos facturables (Aurora, balanceador de carga).
 
-Ejecución manual (la única forma de desplegar). `--ref` elige la rama, y con ella la cuenta AWS; la raíz debe ser una de las que `terraform.deploy` lista para esa rama:
+Ejecución manual (la única forma de desplegar). `--ref` elige la rama, y con ella la cuenta AWS; la raíz debe pertenecer a un ambiente de esa rama:
 
 ```bash
 gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=plan

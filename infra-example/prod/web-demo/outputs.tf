@@ -32,13 +32,11 @@ output "autoscaling_group_name" {
 output "summary" {
   description = "Environment summary derived from the YAML."
   value = {
-    name           = local.name
+    name           = templatestring(local.inputs.network.name, local.tags)
     environment    = local.tags.environment
-    nat_mode       = local.nat_gateway_mode
+    nat_mode       = local.inputs.network.nat_gateway_mode
     alb_internal   = local.inputs.alb.internal
-    https_enabled  = local.has_https
-    db_engine      = local.db_engine
-    db_instances   = length(local.inputs.database.instances)
+    db_engine      = local.inputs.database.engine
     db_deletion_on = local.inputs.database.deletion_protection
     web_min_size   = local.inputs.compute.min_size
     web_max_size   = local.inputs.compute.max_size

@@ -9,14 +9,14 @@ resource "aws_security_group" "this" {
     create_before_destroy = true
 
     precondition {
-      condition     = var.allow_public_ingress || !contains([for r in values(var.ingress_rules) : r.cidr_ipv4], "0.0.0.0/0")
+      condition     = var.allow_public_ingress || !contains([for r in values(local.ingress_rules) : r.cidr_ipv4], "0.0.0.0/0")
       error_message = "Ingress from 0.0.0.0/0 requires allow_public_ingress = true (internet-facing load balancers only)."
     }
   }
 }
 
 resource "aws_vpc_security_group_ingress_rule" "this" {
-  for_each = var.ingress_rules
+  for_each = local.ingress_rules
 
   security_group_id            = aws_security_group.this.id
   description                  = each.value.description
@@ -31,7 +31,7 @@ resource "aws_vpc_security_group_ingress_rule" "this" {
 }
 
 resource "aws_vpc_security_group_egress_rule" "this" {
-  for_each = var.egress_rules
+  for_each = local.egress_rules
 
   security_group_id            = aws_security_group.this.id
   description                  = each.value.description
