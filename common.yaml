@@ -1,4 +1,4 @@
-# Settings of the whole project: the project name, the remote state, the AI switch and the environments (branch, AWS account and roots).
+# Settings of the whole project: the project name, the remote state, the AI switch and the environments (branch and roots).
 # The pipeline and the reviewer read this file, and so does each root, for its `project` and its `environment` (the rest of its values,
 # owner and cost center included, are in its own inputs.yaml).
 
@@ -25,18 +25,16 @@ ai:
 #
 # `environments` is where each environment is defined, once:
 #   branch:   the branch that deploys it (the branch only plans and applies the roots of its environments)
-#   account:  the AWS account id of that branch's keys; the pipeline stops if the keys belong to another account
 #   roots:    the root folders that belong to it; a root takes its `environment` tag from here
-# Environments of the same branch share its keys, so they must name the same account.
+# The AWS account of each branch is not written here: it is the repository variable AWS_ACCOUNT_ID_DEVELOP or AWS_ACCOUNT_ID_MAIN.
+# The pipeline stops if the keys of a branch belong to another account.
 terraform:
   environments:
     dev:
       branch: develop
-      account: "785995043299"
       roots:
         - infra-example/dev/web-demo
     prod:
       branch: main
-      account: "<prod-account-id>"
       roots:
         - infra-example/prod/web-demo

@@ -26,20 +26,18 @@ backend:
 ai:
   enabled: false                # true cuando exista GEMINI_API_KEY
 terraform:
-  environments:                 # cada ambiente, definido una vez: la rama que lo despliega, su cuenta AWS y sus raíces
+  environments:                 # cada ambiente, definido una vez: la rama que lo despliega y sus raíces
     dev:
       branch: develop
-      account: "111111111111"   # el pipeline se detiene si las llaves de esa rama son de otra cuenta
       roots:
         - infra-example/dev/web-demo
     prod:
       branch: main
-      account: "222222222222"
       roots:
         - infra-example/prod/web-demo
 ```
 
-En `terraform:`, `environments` es obligatorio (cada uno necesita su `branch`, `account` y `roots`); el resto es opcional. Ver [arquitectura](architecture.md#configuración).
+En `terraform:`, `environments` es obligatorio (cada uno necesita su `branch` y `roots`; la cuenta de AWS de cada rama es una variable, ver abajo); el resto es opcional. Ver [arquitectura](architecture.md#configuración).
 
 ## 3. Bucket de state (una vez por cuenta y región)
 
@@ -71,16 +69,34 @@ gh secret set AWS_ACCESS_KEY_ID_DEVELOP
 `gh secret set` guarda un secret por comando y te pide el valor, así que no queda en el historial de tu terminal. Nunca subas llaves al repositorio; rota las que se hayan expuesto.
 
 
-## 5. Abre un PR
+## 5. Variables (a nivel de repositorio)
+
+La cuenta de AWS a la que debe pertenecer cada par de llaves **no está escrita en el repositorio**: es una variable del repositorio (no es un secret, y no es pública: solo la ve quien colabora en el repositorio).
+Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y se detiene si no es esta.
+
+| Variable | Obligatoria | Uso |
+| --- | --- | --- |
+| `AWS_ACCOUNT_ID_DEVELOP` | sí | La cuenta de las llaves de `develop` (y de cualquier otra rama) |
+| `AWS_ACCOUNT_ID_MAIN` | sí | La cuenta de las llaves de `main` (producción) |
+
+```bash
+gh variable set AWS_ACCOUNT_ID_DEVELOP --body "<id de la cuenta de dev>"
+gh variable set AWS_ACCOUNT_ID_MAIN --body "<id de la cuenta de producción>"
+```
+O en `https://github.com/<owner>/<repo>/settings/variables/actions`. Si falta una variable, la ejecución se detiene y dice cuál.
+
+## 6. Abre un PR
 
 Crea una rama desde `develop`, cambia algo pequeño y abre un PR hacia `develop`. Obtienes un check por cada aspecto, un `plan` de solo lectura por cada raíz afectada y un comentario con el veredicto, el plan, el costo y el ambiente al que llega. **Fusionar nunca toca AWS.** Para desplegar, ejecuta `terraform.yml` a mano (abajo); el primer apply crea recursos facturables (Aurora, balanceador de carga).
 
-Ejecución manual (la única forma de desplegar). `--ref` elige la rama, y con ella la cuenta AWS; la raíz debe pertenecer a un ambiente de esa rama:
+Ejecución manual (la única forma de desplegar). `--ref` elige la rama, y con ella las llaves y la cuenta AWS. La rama debe estar nombrada por un ambiente en `common.yaml` y la raíz debe pertenecerle; una ejecución desde cualquier otra rama no hace nada.
 
 ```bash
 gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=plan
 gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=apply
 ```
+
+Lo mismo desde GitHub: *Actions* → **terraform** en la lista de la izquierda (no en *All workflows*, donde el botón no aparece) → **Run workflow**. Elige la rama en *Use workflow from*, escribe la `root` y elige el `mode`: `plan` es el valor por defecto, `apply` hay que elegirlo. El bucket de state de esa cuenta debe existir antes (paso 3).
 
 Si un PR no muestra ningún check, algún archivo de workflow es inválido: ejecuta `actionlint .github/workflows/*.yml`.
 

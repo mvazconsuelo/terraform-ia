@@ -1,4 +1,4 @@
-# Settings for the Python quality checks (ruff and mypy). Run from the repository root: `ruff check tools` and `mypy tools`.
+# Settings for the Python quality checks (ruff, mypy) and for the reviewer tests (pytest). The pipeline runs them from the repository root.
 [tool.ruff]
 line-length = 160
 target-version = "py39"
@@ -15,3 +15,8 @@ warn_redundant_casts = true
 check_untyped_defs = true
 namespace_packages = true
 explicit_package_bases = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests/reviewer"]
+pythonpath = ["."]
+addopts = "-q"

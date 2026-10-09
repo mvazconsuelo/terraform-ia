@@ -26,12 +26,12 @@ This file is the single place for the project's conventions. The agent `terrafor
   | Infrastructure values or a root (`inputs.yaml`, a new environment or stack) | `infra/<environment>-<what>` | `develop` for non-production, `main` for production | The owner runs `plan`, then `apply`, by hand |
 
   A branch name never says "deploy": merging deploys nothing. Production reaches `main` by a PR from `develop`, after it was applied in `dev`.
-- **Nothing secret in files or in the chat.** Never write or repeat a key, token or account id. If the owner pastes one, say it must be rotated.
+- **Nothing secret in files or in the chat.** Never write or repeat a key or a token, and and never write an AWS account id in a file (it is the repository variable `AWS_ACCOUNT_ID_DEVELOP` or `AWS_ACCOUNT_ID_MAIN`). If the owner pastes a key, say it must be rotated.
 - **Docs are English with a Spanish copy** (`README.es.md`, `docs/es/*.md`, `infra-example/README.es.md`). Change both, always. File
   names, rule IDs and code stay untranslated. Docs are short and describe what exists; no "run it locally" sections, everything runs from a PR.
 - **Ask before outward or hard-to-reverse actions** (workflow or secret settings, deleting files). Read a file before you say what it holds.
-- A hook (`.claude/hooks/after_edit.py`) runs `ruff` and `mypy` after a change in `tools/` and `terraform fmt` after a change in a `.tf` file, and
-  hands the failures back to you. Run `ruff check tools` and `mypy tools` from the repository root (`.venv/bin/...`) to check the whole of it.
+- A hook (`.claude/hooks/after_edit.py`) runs `ruff` and `mypy` after a change in `tools/` or `tests/` and `terraform fmt` after a change in a `.tf` file, and
+  hands the failures back to you. Run `ruff check tools tests` and `mypy tools tests` from the repository root (`.venv/bin/...`) to check the whole of it.
   After changing `.tf`: `terraform fmt -recursive`, then `terraform validate` in the folder (`init -backend=false` first).
 
 ## How the repository works
@@ -44,7 +44,7 @@ This file is the single place for the project's conventions. The agent `terrafor
 - **The verdict is deterministic code:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed. The AI never
   decides and never receives file contents.
 - **`common.yaml` holds facts about the infrastructure:** `project`, `backend`, `ai`, and `terraform.environments` (each environment with its
-  `branch`, its AWS `account` and its `roots`). Rules are not defined there: they live in `tools/rules/rules.yaml`, grouped by theme (MODULE, TAGS, ROOT, POLICY, PLAN).
+  `branch` and its `roots`; the AWS account of each branch is a repository variable, not a file). Rules are not defined there: they live in `tools/rules/rules.yaml`, grouped by theme (MODULE, TAGS, ROOT, POLICY, PLAN).
 - **Terraform `>= 1.11`.**
 
 ## Where things live
@@ -53,6 +53,7 @@ This file is the single place for the project's conventions. The agent `terrafor
 | --- | --- |
 | `modules/<capability>` or `modules/<domain>/<component>` | The reusable modules. |
 | `infra-example/{dev,prod}/web-demo` | Example roots that consume the modules. |
+| `tests/` | All the tests, in one place: `tests/reviewer` (pytest, the reviewer) and `tests/terraform` (`terraform test`, the modules). |
 | `tools/ci/` | One entry point per workflow step. |
 | `tools/lib/` | Shared helpers: `git_diff`, `github_actions`, `redact_secrets`, `workflow_jobs`. |
 | `tools/terraform/` | Reading the Terraform code (`terraform_map.Repo`, `read_tf_files`, `affected_roots`) and the plan (`read_plan_json`). |
@@ -94,6 +95,22 @@ Read `docs/module-standard.md`, `docs/files.md` and `tools/rules/rules.yaml` bef
   Never use `---` between blocks: `yamldecode` and `safe_load` read one document only.
 - **Policy is data, not code.** A root has no validation block: modules validate their own inputs and the reviewer checks the project's
   policy (`ROOT-003`, `ROOT-004`, `POLICY-*`; the requirements live in `rules.yaml`). Never hard-code `dev`, `staging` or `prod` in a rule or a root.
+
+### Tests
+
+- **All tests live in `tests/` and only the pipeline runs them.** The job `tests` runs `tools/ci/run_tests.py`; a failed test makes the verdict
+  `REQUEST_CHANGES`. No doc, skill or answer asks the owner to run tests locally. Run them yourself once, to check what you wrote.
+- **`tests/reviewer`** (pytest) tests the code that decides: one file per theme, in the order of `rules.yaml` (`test_rules_module.py`, `test_rules_root.py`...),
+  plus `test_verdict.py`, `test_select_roots.py`, `test_affected_roots.py` and `test_redact_secrets.py`.
+  **`tests/terraform`** (`terraform test`, AWS mocked) tests what a module does: **every module has one** `.tftest.hcl`, named after its path with `/` and `-` as `_` (`modules/elb/alb` is `elb_alb.tftest.hcl`, `modules/security-group` is `security_group.tftest.hcl`).
+- **Readable.** One test per case. The name is a sentence: `test_<rule id>_flags_<what>` for a rule that fires (`test_root_003_flags_a_root_outside_every_environment`),
+  `a_manual_run_from_a_branch_no_environment_names_reaches_nothing` for a behaviour. Three comment lines in every test: `given` (what is set up or broken),
+  `when` (what runs), `then` (what must come out). `conftest.py` has the `sandbox` (a copy of the repository to break) and `findings_of`.
+- **Every rule has a test that flags it, and every module has a `.tftest.hcl`.** `test_every_rule_has_tests.py` fails when a rule has none, and
+  `test_every_rule_passes_on_the_repository` fails when the repository breaks its own rules. `test_every_module_has_a_terraform_test.py` fails when a module has
+  none, except the ones listed in its `PENDING` (empty today: every module has its test; a new module brings its test in the same change). A rule, a module or a behaviour is not done without its test.
+- **What a module test holds, at least:** a plan that works with the minimum inputs, and one input that the module must reject. A module that resolves, defaults
+  or picks something also tests that, one case for each.
 
 ### Python (`tools`)
 

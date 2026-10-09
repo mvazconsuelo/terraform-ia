@@ -29,12 +29,35 @@ No asume nombres de carpeta: funciona igual con `infra/web`, `terraform/networki
 
 ![De un cambio a un despliegue: cambio, checks, revisión, merge y despliegue manual en la cuenta AWS de dev o de prod](docs/images/architecture.svg)
 
+## Inicio rápido
+
+**Instalar** (detalle en [Instalación](docs/es/install.md)):
+
+1. Usá este repositorio (fork o clon). `main` es producción; creá `develop`.
+2. En [`common.yaml`](common.yaml) definí el `project` y cada ambiente: su `branch` y sus `roots`.
+3. Creá el bucket de state una vez por cuenta y región: `<project>-tfstate-<id de cuenta>-<región>`.
+4. Cargá los secrets: `AWS_ACCESS_KEY_ID_DEVELOP` / `AWS_SECRET_ACCESS_KEY_DEVELOP`, el par `..._MAIN` y `AWS_REGION` (`gh secret set <NOMBRE>`); y las variables `AWS_ACCOUNT_ID_DEVELOP` y `AWS_ACCOUNT_ID_MAIN` (`gh variable set <NOMBRE>`): la cuenta a la que debe pertenecer cada par de llaves, que no está escrita en el repositorio.
+
+**Usar**:
+
+1. Cambiá un módulo o un `inputs.yaml` en una rama y abrí un pull request hacia `develop`. El comentario muestra el veredicto, el plan y el costo.
+2. Fusionalo. **No se despliega nada.**
+3. Desplegá a mano, primero el plan:
+   ```bash
+   gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=plan
+   gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=apply
+   ```
+   O en GitHub: *Actions* → **terraform** → **Run workflow**, eligiendo la rama, la raíz y el `mode` (ver [instalación](docs/es/install.md#5-abre-un-pr)).
+4. Producción: un pull request de `develop` hacia `main`, y los mismos dos comandos con `--ref main` y la raíz de prod.
+
+Para ir más lejos: [agregar un ambiente](infra-example/README.es.md#agregar-un-ambiente) · [escribir un módulo](docs/es/module-standard.md) · [agregar una regla](docs/es/checks.md).
+
 ## Puntos clave
 
 | | |
 | --- | --- |
 | **Descubrimiento de raíces afectadas** | Un grafo de llamadas entre módulos construido con las rutas locales de `source`. Las raíces editadas, los módulos editados (de forma transitiva) y los archivos compartidos editados se traducen a raíces. La documentación no dispara nada. |
-| **Rama → cuenta** | `develop` y `main` usan llaves AWS distintas. Antes de `init`, el pipeline compara la cuenta de las llaves con la que `terraform.environments` nombra para la rama y se detiene si no coinciden. |
+| **Rama → cuenta** | `develop` y `main` usan llaves AWS distintas. Antes de `init`, el pipeline compara la cuenta de las llaves con la variable del repositorio de esa rama y se detiene si no coinciden. |
 | **Veredicto determinista** | `REQUEST_CHANGES` ante cualquier hallazgo HIGH o CRITICAL o un check fallido; si no, `PASS`. La IA nunca participa. |
 | **Reviewer** | Reglas (límites de módulos, tags obligatorios, plan y costo contra los estándares) sobre `terraform`, TFLint, Checkov e Infracost. |
 | **Resumen de IA** | Un texto validado contra un esquema y verificado: cada recurso, archivo y precio que menciona se contrasta con la evidencia. Apagado por defecto; un modelo que falla nunca cambia el resultado. |
@@ -95,6 +118,10 @@ Cada módulo tiene su propio README con uso, recursos, entradas, salidas, ciclo 
 | [`eks/node-group`](modules/eks/node-group/README.md) | Node groups administrados de EKS, expresados como intención. |
 | [`eks/addons`](modules/eks/addons/README.md) | Add-ons administrados de EKS, instalados solo cuando se listan. |
 
+## Contribuir, seguridad y licencia
+
+Las ideas y los errores van en un issue; los pull requests los abre el mantenedor: [CONTRIBUTING.md](docs/es/contributing.md). Cómo reportar una vulnerabilidad (en privado): [SECURITY.md](docs/es/security.md). Licencia: [MIT](LICENSE).
+
 ## Stack
 
 <img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="AWS" src="https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazonwebservices&logoColor=white">&nbsp;<img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white">&nbsp;<img alt="Python" src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white">&nbsp;<img alt="TFLint" src="https://img.shields.io/badge/TFLint-5C4EE5?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="Checkov" src="https://img.shields.io/badge/Checkov-1F2A37?style=for-the-badge">&nbsp;<img alt="Infracost" src="https://img.shields.io/badge/Infracost-FF6B35?style=for-the-badge">&nbsp;<img alt="Gemini" src="https://img.shields.io/badge/Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white">
@@ -110,12 +137,13 @@ Para ejecutar el pipeline en tu propio repositorio: [Instalación](docs/es/insta
 ```text
 modules/              Módulos AWS reutilizables (un README cada uno)
 infra-example/        Raíces de ejemplo: dev/web-demo y prod/web-demo
-tools/       El reviewer: ci/ (un archivo por paso del workflow) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
+tests/                Todos los tests, ejecutados solo por el pipeline: tests/reviewer (pytest) y tests/terraform (terraform test)
+tools/                El reviewer: ci/ (un archivo por paso del workflow) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
 .github/workflows/    pull-request.yml (checks, planes, comentario) · terraform.yml (plan / apply)
-common.yaml           proyecto, state, interruptor de IA y los ambientes (rama, cuenta AWS, raíces)
+common.yaml           proyecto, state, interruptor de IA y los ambientes (rama, raíces)
 docs/                 Instalación, arquitectura, mapa de archivos, los checks, estándar de módulos (docs/es/ en español)
 .claude/              agente terraform-ia-engineer (propone, nunca ejecuta comandos) y las skills new-module, new-rule y new-root
-CLAUDE.md            las convenciones que Claude Code lee en cada sesión
+CLAUDE.md             las convenciones que Claude Code lee en cada sesión
 ```
 
 </details>

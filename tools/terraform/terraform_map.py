@@ -40,7 +40,7 @@ _BACKEND = re.compile(r'^\s*backend\s+"', re.MULTILINE)
 CONFIG_DEFAULTS: Dict[str, Any] = {
     "roots": None,        # globs of the root folders; None = infer them from the code
     "modules": ["modules"],   # folders that hold shared modules
-    "environments": {},   # environment name -> {branch, account, roots}: the branch that deploys it, its AWS account id and its roots (paths or globs)
+    "environments": {},   # environment name -> {branch, roots}: the branch that deploys it and its roots (paths or globs)
 }
 
 
@@ -245,7 +245,7 @@ class Repo:
         return folder
 
     # ------------------------------------------------------------------------------------------------------------
-    # Environments (terraform.environments): each one has a branch, an AWS account and the roots that belong to it
+    # Environments (terraform.environments): each one has a branch and the roots that belong to it
     # ------------------------------------------------------------------------------------------------------------
     def environment_of(self, root: str) -> Optional[str]:
         """The name of the environment a root belongs to; None if it belongs to none."""
@@ -265,17 +265,6 @@ class Repo:
         if not environments:
             return None
         return [pattern for env in environments for pattern in env.get("roots") or []]
-
-    def account_of_branch(self, branch: str) -> str:
-        """The AWS account id the keys of a branch must belong to. Empty if no environment names it.
-
-        Raises ValueError when the environments of one branch name different accounts: the branch has one set of keys."""
-        environments = [env for env in (self.cfg["environments"] or {}).values() if (env or {}).get("branch") == branch]
-        accounts = {str(env["account"]) for env in environments if env.get("account")}
-        if len(accounts) > 1:
-            raise ValueError("the environments of branch '{}' name different accounts ({}); a branch has one set of keys".format(
-                branch, ", ".join(sorted(accounts))))
-        return accounts.pop() if accounts else ""
 
     def is_protected(self, root: str) -> bool:
         """Whether destroying stateful resources in this root is CRITICAL: it belongs to a protected environment (PLAN-001), or the

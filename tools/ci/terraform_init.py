@@ -2,7 +2,7 @@
 
 Every check before `init` can stop the run without touching anything:
   1. pick the AWS keys of the branch (`main` -> the MAIN keys, any other branch -> the DEVELOP keys);
-  2. check that those keys belong to the account that `terraform.environments` (common.yaml) names for the branch, so keys pasted into the wrong
+  2. check that those keys belong to the account of the repository variable AWS_ACCOUNT_ID_<DEVELOP|MAIN>, so keys pasted into the wrong
      secret cannot create resources in the wrong account;
   3. check that the state bucket `<project>-tfstate-<account>-<region>` exists (it is created by hand, once).
 """
@@ -19,7 +19,6 @@ import yaml
 from ..aws import account
 from ..lib.github_actions import branch_of, fail
 from ..terraform.run_terraform import run_terraform
-from ..terraform.terraform_map import Repo
 
 
 def _ensure_backend_block(folder: str) -> None:
@@ -49,17 +48,16 @@ def init_step(env: Optional[Dict[str, str]] = None) -> int:
     target = account.target_for(branch)
     with open("common.yaml", encoding="utf-8") as handle:
         config = yaml.safe_load(handle) or {}
-    try:
-        expected = Repo(os.path.abspath(".")).account_of_branch(target)
-    except ValueError as error:
-        return fail("common.yaml: {}. Nothing was run.".format(error))
+    expected = account.expected_account(branch, env)
     if not expected:
-        return fail("No environment of terraform.environments in common.yaml names branch '{}' with an account. Nothing was run.".format(target))
+        return fail("The repository variable AWS_ACCOUNT_ID_{} is not set: it says which account the '{}' keys must belong to. Nothing was run.".format(
+            target.upper(), target))
     actual, reason = account.account_of(aws_env)
     if actual is None:
         return fail("Could not identify the AWS account of the '{}' keys: {}".format(target, reason))
     if actual != expected:
-        return fail("The AWS keys for '{}' belong to account {}, but common.yaml expects {}. Nothing was run.".format(target, actual, expected))
+        return fail("The AWS keys for '{}' belong to account {}, but AWS_ACCOUNT_ID_{} expects {}. Nothing was run.".format(
+            target, actual, target.upper(), expected))
 
     # 3. the state bucket
     bucket = "{}-tfstate-{}-{}".format(config["project"], actual, region)

@@ -28,6 +28,7 @@ def _check_results(env: Dict[str, str]) -> Dict[str, str]:
         "python (ruff, mypy)": env.get("R_PYTHON", ""),
         "terraform validate": env.get("R_VALIDATE", ""),
         "TFLint": env.get("R_TFLINT", ""),
+        "tests": env.get("R_TESTS", ""),
         "repository contract": env.get("R_CONTRACT", ""),
     }
     checkov_findings = env.get("R_CHECKOV_FAILED") or "0"

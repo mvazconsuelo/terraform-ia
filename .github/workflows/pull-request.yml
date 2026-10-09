@@ -10,14 +10,20 @@ on:
 permissions:
   contents: read
 
+# A new push to the same pull request cancels the run in progress: only the latest commit is judged.
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   fmt:
     name: terraform fmt
     if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: hashicorp/setup-terraform@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
           terraform_version: "~> 1.16.0"
       - run: terraform fmt -check -recursive
@@ -26,28 +32,30 @@ jobs:
     name: python (ruff, mypy)
     if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - run: python -m pip install -q pyyaml types-PyYAML ruff==0.16.10 mypy==1.19.1
-      - run: ruff check tools
-      - run: mypy tools
+      - run: ruff check tools tests
+      - run: mypy tools tests
 
   # Which Terraform root configurations this PR affects (edited, or using a changed shared module or file). Everything
   # below that touches a configuration runs only for these; the others are not initialised, planned or validated.
   discover:
     name: affected configurations
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       matrix: ${{ steps.d.outputs.matrix }}
       count: ${{ steps.d.outputs.count }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - run: python -m pip install -q pyyaml
@@ -61,15 +69,16 @@ jobs:
     name: terraform validate
     if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - run: python -m pip install -q pyyaml
-      - uses: hashicorp/setup-terraform@v4
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
         with:
           terraform_version: "~> 1.16.0"
       - name: validate the modules and the configurations this PR affects
@@ -82,15 +91,16 @@ jobs:
     name: TFLint
     if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - run: python -m pip install -q pyyaml
-      - uses: terraform-linters/setup-tflint@v6
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6
       - name: lint the modules this PR affects (root configurations are not modules, so they are not linted)
         env:
           BASE: origin/${{ github.base_ref }}
@@ -100,13 +110,14 @@ jobs:
     name: Checkov
     if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       failed: ${{ steps.scan.outputs.failed }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - run: python -m pip install -q pyyaml checkov
@@ -116,13 +127,31 @@ jobs:
           BASE: origin/${{ github.base_ref }}
         run: python -m tools.ci.terraform_checkov
 
+  # The tests of the reviewer (pytest) and of the modules (terraform test, AWS mocked). No AWS, no secrets.
+  tests:
+    name: tests
+    if: github.base_ref != github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q pyyaml pytest==8.4.2
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_version: "~> 1.16.0"
+      - run: python -m tools.ci.run_tests
+
   contract:
     name: repository contract
     if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - run: python -m pip install -q pyyaml
@@ -147,22 +176,23 @@ jobs:
 
   review:
     name: PR comment
-    needs: [discover, fmt, python, validate, tflint, checkov, contract, plan]
+    needs: [discover, fmt, python, validate, tflint, checkov, tests, contract, plan]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: write
       actions: read      # to link the jobs of this run
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.12"
       - run: python -m pip install -q pyyaml
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         continue-on-error: true
         with:
           pattern: plan-*
@@ -184,11 +214,14 @@ jobs:
           R_TFLINT: ${{ needs.tflint.result }}
           R_CHECKOV: ${{ needs.checkov.result }}
           R_CHECKOV_FAILED: ${{ needs.checkov.outputs.failed }}
+          R_TESTS: ${{ needs.tests.result }}
           R_CONTRACT: ${{ needs.contract.result }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
           MATRIX: ${{ needs.discover.outputs.matrix }}
           BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AWS_ACCOUNT_ID_DEVELOP: ${{ vars.AWS_ACCOUNT_ID_DEVELOP }}
+          AWS_ACCOUNT_ID_MAIN: ${{ vars.AWS_ACCOUNT_ID_MAIN }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: python -m tools.ci.pr_review
 

@@ -17,8 +17,12 @@ First decide what kind of rule it is, and say so:
 Before writing, check that an external tool does not already cover it (terraform fmt/validate, tflint, Checkov, Infracost). The catalog holds
 only what they cannot know. A rule naming a function that does not exist makes the review fail on purpose.
 
+**The test is part of the rule.** Add to `tests/reviewer/test_rules_<theme>.py` (the theme of the rule) a test named `test_<rule id>_flags_<what>` that breaks a copy of the
+repository on purpose with the `sandbox` and checks the finding with `findings_of`; follow the given / when / then comments of the other tests (see `CLAUDE.md`, Tests). That the real
+repository passes is already tested for every rule. `test_every_rule_has_tests.py` fails if a rule has no flagging test. Only the pipeline runs the tests: run them once yourself to check them.
+
 Verify with both faces of the rule:
-1. From the repository root: `.venv/bin/ruff check tools` and `.venv/bin/mypy tools`.
+1. From the repository root: `.venv/bin/ruff check tools tests` and `.venv/bin/mypy tools tests`.
 2. The real repository gives no finding of the new rule, and a broken copy of the repository gives exactly one. Report what you saw.
 
 End with the git commands (see `CLAUDE.md`).

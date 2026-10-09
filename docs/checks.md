@@ -44,7 +44,7 @@ A rule has an **ID** (`FAMILY-NUMBER`), a **severity**, and a **function** that 
 
 ## How a rule becomes a verdict
 
-`REQUEST_CHANGES` when a confirmed finding is **High** or **Critical**, or when an external check failed (`terraform fmt`, the Python checks (ruff, mypy), `validate`, TFLint, the repository contract). Checkov runs with `--soft-fail`: its findings show as a warning and do not block yet. Anything else is `PASS`; lower severities are still listed in the comment. `PLAN-001` is Critical in a root of a protected environment (`protected_environments` of the rule), and in every root of a PR into production.
+`REQUEST_CHANGES` when a confirmed finding is **High** or **Critical**, or when an external check failed (`terraform fmt`, the Python checks (ruff, mypy), the tests, `validate`, TFLint, the repository contract). Checkov runs with `--soft-fail`: its findings show as a warning and do not block yet. Anything else is `PASS`; lower severities are still listed in the comment. `PLAN-001` is Critical in a root of a protected environment (`protected_environments` of the rule), and in every root of a PR into production.
 
 ## Add a rule
 
