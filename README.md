@@ -29,6 +29,29 @@ No folder names are assumed: it works the same for `infra/web`, `terraform/netwo
 
 ![From a change to a deploy: change, checks, review, merge and a manual deploy to the dev or prod AWS account](docs/images/architecture.svg)
 
+## Quick start
+
+**Install** (details in [Setup](docs/install.md)):
+
+1. Use this repository (fork or clone). `main` is production; create `develop`.
+2. In [`common.yaml`](common.yaml) set the `project` and each environment: its `branch`, its AWS `account` and its `roots`.
+3. Create the state bucket once per account and region: `<project>-tfstate-<account id>-<region>`.
+4. Add the secrets: `AWS_ACCESS_KEY_ID_DEVELOP` / `AWS_SECRET_ACCESS_KEY_DEVELOP`, the `..._MAIN` pair, and `AWS_REGION` (`gh secret set <NAME>`).
+
+**Use**:
+
+1. Change a module or an `inputs.yaml` on a branch and open a pull request into `develop`. The comment shows the verdict, the plan and the cost.
+2. Merge it. **Nothing is deployed.**
+3. Deploy by hand, plan first:
+   ```bash
+   gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=plan
+   gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=apply
+   ```
+   Or in GitHub: *Actions* → **terraform** → **Run workflow**, choosing the branch, the root and `mode` (see [install](docs/install.md#5-open-a-pr)).
+4. Production: a pull request from `develop` into `main`, then the same two commands with `--ref main` and the prod root.
+
+To go further: [add an environment](infra-example/README.md#adding-an-environment) · [write a module](docs/module-standard.md) · [add a rule](docs/checks.md).
+
 ## Highlights
 
 | | |
@@ -95,6 +118,10 @@ Each module has its own README with usage, resources, inputs, outputs, lifecycle
 | [`eks/node-group`](modules/eks/node-group/README.md) | EKS managed node groups, expressed as intent. |
 | [`eks/addons`](modules/eks/addons/README.md) | EKS managed add-ons, installed only when listed. |
 
+## Contributing, security and license
+
+How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). How to report a vulnerability (privately): [SECURITY.md](SECURITY.md). License: [MIT](LICENSE).
+
 ## Stack
 
 <img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="AWS" src="https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazonwebservices&logoColor=white">&nbsp;<img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white">&nbsp;<img alt="Python" src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white">&nbsp;<img alt="TFLint" src="https://img.shields.io/badge/TFLint-5C4EE5?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="Checkov" src="https://img.shields.io/badge/Checkov-1F2A37?style=for-the-badge">&nbsp;<img alt="Infracost" src="https://img.shields.io/badge/Infracost-FF6B35?style=for-the-badge">&nbsp;<img alt="Gemini" src="https://img.shields.io/badge/Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white">
@@ -110,12 +137,13 @@ To run the pipeline on your own repository: [Setup](docs/install.md).
 ```text
 modules/              Reusable AWS modules (README each)
 infra-example/        Example roots: dev/web-demo and prod/web-demo
-tools/       The reviewer: ci/ (one file per workflow step) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
+tests/                Every test, run only by the pipeline: tests/reviewer (pytest) and tests/terraform (terraform test)
+tools/                The reviewer: ci/ (one file per workflow step) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
 .github/workflows/    pull-request.yml (checks, plans, comment) · terraform.yml (plan / apply)
 common.yaml           project, state settings, AI switch, and the environments (branch, AWS account, roots)
 docs/                 Setup, architecture, file map, the checks, module standard
 .claude/              terraform-ia-engineer agent (proposes, never runs commands) and the skills new-module, new-rule and new-root
-CLAUDE.md            the conventions Claude Code reads in every session
+CLAUDE.md             the conventions Claude Code reads in every session
 ```
 
 </details>

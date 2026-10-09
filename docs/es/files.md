@@ -12,11 +12,15 @@ Cada archivo y carpeta del repositorio: qué hace, para qué sirve y qué repres
 | `common.yaml` | La configuración compartida del proyecto. Cada raíz lee de ella su `project` y su `environment` (el ambiente es aquel cuya lista de raíces tiene a la raíz; owner y centro de costo están en el `inputs.yaml` de la raíz); el pipeline y el reviewer leen `project` (bucket de state y checks) y `backend`, `ai` y `terraform` (`environments`, cada uno con su `branch`, `account` y `roots`, y los opcionales `roots`, `modules`, `protected`, `conventions`). Es el único lugar que un equipo edita para adaptar la plataforma a sus cuentas. |
 | `.terraform-version` | La versión de Terraform para herramientas como tfenv (los workflows fijan `~> 1.16.0`). Un cambio en él marca todas las raíces como "afectadas". |
 | `.tflint.hcl` | Configuración de TFLint: los conjuntos de reglas de Terraform y AWS y las reglas activas (versión requerida y providers, variables y outputs documentados y tipados, nombres). |
+| `LICENSE` | La licencia MIT: cualquiera puede usar, copiar, modificar y distribuir el código, conservando el aviso de copyright. |
+| `CONTRIBUTING.md`, `SECURITY.md` | Cómo contribuir y cómo reportar una vulnerabilidad (copias en español en `docs/es/contributing.md` y `docs/es/security.md`). GitHub los muestra en el repositorio. |
 | `CLAUDE.md` | Lo que Claude Code lee en cada sesión: cómo funciona el repositorio, dónde está cada cosa y todas las convenciones. El único lugar donde cambiar una convención. |
 | `.claude/agents/terraform-ia-engineer.md` | El asistente del proyecto para Claude Code. Lee `CLAUDE.md`, propone y espera tu aprobación, nunca ejecuta comandos y te da los comandos git para que los ejecutes tú. |
 | `.claude/settings.json`, `.claude/hooks/after_edit.py` | Claude Code ejecuta el hook después de cada edición: `ruff` y `mypy` tras un cambio en `tools/`, `terraform fmt` tras un cambio en un `.tf`. Si un check falla, la salida vuelve a Claude para que corrija el archivo. `settings.json` además bloquea los comandos que son del dueño: las escrituras de git (`add`, `commit`, `push`, `merge`...), `gh workflow run` y los demás comandos de `gh` que publican o cambian ajustes, y `terraform apply`, `destroy`, `import` y `state`. |
 | `.claude/skills/new-module/`, `new-rule/`, `new-root/` | Las listas paso a paso para crear un módulo, agregar una regla del reviewer y armar infraestructura con los módulos (un ambiente o un stack nuevo). Claude Code las usa cuando se las pedís; el agente las sigue como su propuesta. |
-| `pyproject.toml` | Configuración de `ruff` y `mypy`, que el job `python` de cada PR ejecuta sobre el Python del reviewer. |
+| `pyproject.toml` | Configuración de `ruff` y `mypy` (el job `python` de cada PR) y de `pytest` (el job `tests`). |
+| `tests/` | Todos los tests, en un solo lugar y ejecutados solo por el pipeline: ver [`tests/`](#tests-los-tests). |
+| `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/` | La plantilla de cada pull request (qué cambia, tipo de cambio, lista de control) y los dos formularios de issues (error y mejora). Los issues en blanco están desactivados; un problema de seguridad va al reporte privado. |
 | `.github/CODEOWNERS` | Quién revisa qué: GitHub pide la revisión del responsable en cada pull request que toque los workflows, el reviewer, `common.yaml`, los módulos, los ejemplos o la documentación. |
 | `.github/dependabot.yml` | Dependabot: un pull request semanal **hacia `develop`** que actualiza las GitHub Actions que usan los workflows, agrupadas en uno solo. Ver [Actualización de dependencias](architecture.md#actualización-de-dependencias-dependabot). |
 | `.gitignore` | Deja fuera el state, los planes, el entorno de Python, el `backend.tf` que genera el pipeline y el historial del editor. |
@@ -25,7 +29,7 @@ Cada archivo y carpeta del repositorio: qué hace, para qué sirve y qué repres
 
 | Archivo | Qué hace |
 | --- | --- |
-| `pull-request.yml` | Se ejecuta en cada pull request. Descubre las raíces y los módulos afectados, ejecuta `fmt`, los checks de Python (ruff, mypy), `validate`, TFLint, Checkov y el contrato del repositorio, pide a `terraform.yml` un plan de solo lectura de cada raíz afectada y arma el comentario de revisión. Un PR hacia producción omite esos seis checks y ejecuta solo plan, costo y revisión. |
+| `pull-request.yml` | Se ejecuta en cada pull request. Descubre las raíces y los módulos afectados, ejecuta `fmt`, los checks de Python (ruff, mypy), `validate`, TFLint, Checkov, los tests y el contrato del repositorio, pide a `terraform.yml` un plan de solo lectura de cada raíz afectada y arma el comentario de revisión. Un PR hacia producción omite esos seis checks y ejecuta solo plan, costo y revisión. |
 | `terraform.yml` | El único workflow que toca AWS. Para una raíz elige las llaves de la rama, verifica la cuenta, comprueba el bucket de state y ejecuta `init` → `plan` → (`apply`). Lo llaman los PR para un plan, o se inicia a mano para un plan o un apply: fusionar nunca despliega. |
 
 ## `tools/`: el reviewer
@@ -99,6 +103,7 @@ del paso que ves en GitHub.
 | `discover_roots.py` | affected configurations | Las raíces que afecta un PR y que su rama destino posee: entrega al workflow la matriz para los jobs de plan, cuántas son y la lista con los motivos. |
 | `select_roots.py` | which roots (terraform.yml) | La raíz sobre la que actúa una ejecución de `terraform.yml`: la que se pidió (una ejecución manual además debe pertenecer a un ambiente de su rama). |
 | `contract_check.py` | repository contract | Las reglas que leen el código, sobre todo el repositorio; falla ante cualquier hallazgo High o Critical. |
+| `run_tests.py` | tests | Los tests del reviewer (`pytest`) y de los módulos (`terraform test`, AWS simulado), sin secrets. Si fallan, el veredicto es `REQUEST_CHANGES`. |
 | `terraform_validate.py` | terraform validate | `terraform validate` en los módulos y raíces que afecta un PR, con una caché de providers compartida. |
 | `terraform_tflint.py` | TFLint | TFLint, con el `.tflint.hcl` del repositorio, sobre los módulos afectados. |
 | `terraform_checkov.py` | Checkov | Checkov sobre los módulos afectados; publica la cantidad de hallazgos. |
@@ -163,6 +168,21 @@ Una capa web en una VPC: un Application Load Balancer delante de un Auto Scaling
 | `inputs.yaml` | Los valores de esta raíz: tags, red, reglas de seguridad, base de datos, balanceador, cómputo. El único archivo que difiere entre dev y prod en intención. |
 | `web-user-data.sh.tftpl` | El script de arranque de las instancias web (un servidor web de ejemplo con `/health`). |
 | `README.md` (en `infra-example/`) | Las notas propias del ejemplo: estructura, referencia de `inputs.yaml`, qué se comprueba y notas de diseño. |
+
+## `tests/`: los tests
+
+Todos los tests viven acá y **solo los ejecuta el pipeline** (job `tests`, paso `tools/ci/run_tests.py`). Si un test falla, el veredicto es `REQUEST_CHANGES`.
+
+| Ruta | Qué prueba |
+| --- | --- |
+| `reviewer/conftest.py` | Lo que comparten los tests: `sandbox` (una copia del repositorio para romper a propósito) y `findings_of` (qué encuentra una regla en ella). |
+| `reviewer/test_rules_module.py`, `test_rules_root.py`, `test_rules_policy.py`, `test_rules_plan.py` | Un archivo por tema de `rules.yaml`. Toda regla tiene un test que la hace saltar (`test_<id de la regla>_flags_<qué>`). |
+| `reviewer/test_every_rule_has_tests.py` | Falla cuando una regla no tiene un test que la haga saltar, o cuando el repositorio rompe una de sus propias reglas. |
+| `reviewer/test_verdict.py` | `PASS` o `REQUEST_CHANGES` a partir de los hallazgos y los checks. |
+| `reviewer/test_select_roots.py`, `test_affected_roots.py` | Qué raíces alcanza una ejecución o un cambio, y qué puede desplegar una rama. |
+| `reviewer/test_redact_secrets.py` | Que las claves y contraseñas se oculten antes de que algo salga del repositorio. |
+| `reviewer/test_every_module_has_a_terraform_test.py` | Falla cuando un módulo no tiene su test en `terraform/`, salvo los módulos de su lista `PENDING` (lo pendiente). |
+| `terraform/<ruta del módulo con _>.tftest.hcl` | Uno por módulo (`elb_alb`, `security_group`...). `terraform test` con el provider de AWS simulado: un plan con las entradas mínimas, lo que el módulo resuelve o elige, y las entradas que rechaza. |
 
 ## `docs/`
 
