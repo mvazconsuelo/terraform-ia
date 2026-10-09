@@ -1,12 +1,12 @@
 name: terraform
 
-# The workflow has no logic of its own: each step calls one file of tools/reviewer/ci, which decides what to do.
+# The workflow has no logic of its own: each step calls one file of tools/ci, which decides what to do.
 # The only workflow that touches AWS: init -> plan -> (apply) of one Terraform root configuration.
 #   called by pull-request.yml ... read-only plan of an affected root (its summary feeds the PR comment)
 #   manual (Run workflow) ........ plan or apply one root. This is the ONLY way to deploy: merging a pull request never touches AWS.
 # The branch decides the AWS account: develop uses the AWS_*_DEVELOP secrets, main uses the AWS_*_MAIN secrets (any other
 # branch, e.g. a manual run, uses develop's). Before anything runs, the account of the keys is compared with
-# terraform.accounts.<develop|main> in common.yaml, so keys pasted into the wrong secret stop the run. State: bucket
+# the account of its environment in common.yaml (terraform.environments), so keys pasted into the wrong secret stop the run. State: bucket
 # <project>-tfstate-<account>-<region>, created once by hand; key <root>/terraform.tfstate.
 on:
   workflow_call:
@@ -55,7 +55,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           ROOT: ${{ inputs.root }}
           REF_NAME: ${{ github.ref_name }}
-        run: PYTHONPATH=tools python -m reviewer.ci.select_roots
+        run: python -m tools.ci.select_roots
 
   run:
     name: ${{ matrix.root }}
@@ -69,7 +69,7 @@ jobs:
     concurrency:
       group: terraform-${{ matrix.slug }}
       cancel-in-progress: false
-    # The workflow only hands over raw values. What they mean (plan or apply, which AWS account) is decided in tools/reviewer/ci.
+    # The workflow only hands over raw values. What they mean (plan or apply, which AWS account) is decided in tools/ci.
     env:
       ROOT: ${{ matrix.root }}
       SLUG: ${{ matrix.slug }}
@@ -91,19 +91,19 @@ jobs:
         with:
           terraform_version: "~> 1.16.0"
       - name: terraform init
-        run: PYTHONPATH=tools python -m reviewer.ci.terraform_init
+        run: python -m tools.ci.terraform_init
       - name: terraform plan
-        run: PYTHONPATH=tools python -m reviewer.ci.terraform_plan
+        run: python -m tools.ci.terraform_plan
       - name: terraform apply
-        run: PYTHONPATH=tools python -m reviewer.ci.terraform_apply
+        run: python -m tools.ci.terraform_apply
       - name: terraform show -json
-        run: PYTHONPATH=tools python -m reviewer.ci.terraform_show_json
+        run: python -m tools.ci.terraform_show_json
       - name: terraform versions
-        run: PYTHONPATH=tools python -m reviewer.ci.terraform_versions
+        run: python -m tools.ci.terraform_versions
       - name: infracost
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
-        run: PYTHONPATH=tools python -m reviewer.ci.infracost_estimate
+        run: python -m tools.ci.infracost_estimate
       - uses: actions/upload-artifact@v6
         if: always()
         with:

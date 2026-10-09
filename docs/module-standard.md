@@ -2,19 +2,22 @@
 
 English · [Español](es/module-standard.md)
 
-The contract every module in `modules/` follows. Rule IDs refer to [`tools/reviewer/rules/rules.yaml`](../tools/reviewer/rules/rules.yaml).
+The contract every module in `modules/` follows. Rule IDs refer to [`tools/rules/rules.yaml`](../tools/rules/rules.yaml).
 
 **Scope and boundaries**
 - A module is one **reusable capability** (VPC, Lambda, S3, Aurora, ALB, IAM, ...), usable independently and never tied to one
   environment. A capability MUST live in its module; root configurations consume modules and MUST NOT declare the underlying
   resources (`MODULE-001`).
 - Multi-component domains live under `modules/<domain>/<component>`: `eks` (cluster, node-group, addons), `ec2`
-  (launch-template, instances, asg) and `elb` (nlb, alb). Load balancers are not part of the EC2 domain. Top-level
-  `modules/eks-*`, `ec2-*`, `elb-*`, `nlb` or `alb` are forbidden (`MODULE-005`).
+  (launch-template, instances, asg), `elb` (nlb, alb) and `route53` (zone, records). Load balancers are not part of the EC2 domain. Top-level
+  `modules/eks-*`, `ec2-*`, `elb-*`, `route53-*`, `nlb` or `alb` are forbidden (`MODULE-005`).
 - `ec2/instances` and `ec2/asg` consume `ec2/launch-template`; the hardened instance definition (IMDSv2, encryption, tags)
   lives only there. EKS capacity is expressed through `eks/node-group`, never a raw Auto Scaling Group (`MODULE-006`).
 - Modules do not configure providers and do not call modules of another domain; cross-capability wiring happens in the
   root configuration.
+
+**A module is the source of truth of how it is called.** Its variables (`variables.tf`) and its README are its contract. Nothing a project does
+changes it: the projects that call a module keep their own values, in their own `inputs.yaml`, and pass them to the module's variables as they are. A call holds no logic (no `for`, `try` or conditions that reshape the values): whatever has to be resolved or defaulted is the module's job.
 
 **Structure** (`MODULE-002`): `versions.tf`, `variables.tf`, `outputs.tf` and `README.md` are
 required; `main.tf`, `locals.tf` and `data.tf` as needed.
@@ -50,7 +53,7 @@ last resort and commented; no `local-exec` or `null_resource` unless unavoidable
 **Documentation**: each module README is short and has these sections, in this order. The model to copy is
 [`modules/api-gateway/README.md`](../modules/api-gateway/README.md).
 - *Title and purpose*: one line on what it builds, and a line of **non-goals**.
-- *Usage*: one realistic `module` block, no more.
+- *Usage*: how to write it in a project. First the block of `inputs.yaml` (block-style YAML; the keys are the module's variable names), then the `module` call that reads it with `local.inputs.*`. What comes from other modules is wired in the `.tf`. `tags` is the project's shared block. The module is still the source of truth: the YAML only shows how to give it the values its variables ask for.
 - *Resources and tags*: the resources it creates, which of them are taggable and tagged, and the mandatory tags.
 - *Inputs*: the names that matter, grouped, with a pointer to `variables.tf` for types, defaults and validations. No generated tables.
 - *Outputs*: the names.
@@ -65,7 +68,7 @@ deprecate before removing.
 ## How the standard is enforced
 
 The standard above is the contract in words. These are the parts the reviewer checks by code: each row is one rule of the
-[catalog](checks.md), implemented by one function in [`rules/code_rules.py`](../tools/reviewer/rules/code_rules.py).
+[catalog](checks.md), implemented by one function in [`rules/code_rules.py`](../tools/rules/code_rules.py).
 
 | The standard says | Rule | Function |
 | --- | --- | --- |
@@ -73,12 +76,11 @@ The standard above is the contract in words. These are the parts the reviewer ch
 | A module has `versions.tf`, `variables.tf`, `outputs.tf` and `README.md` | `MODULE-002` | `module_missing_required_files` |
 | The primary resource is `this`; no arbitrary names | `MODULE-003` | `resource_has_arbitrary_name` |
 | No `type = any` | `MODULE-004` | `variable_typed_any` |
-| Components live under their domain folder (`eks/`, `ec2/`, `elb/`) | `MODULE-005` | `component_outside_domain_folder` |
+| Components live under their domain folder (`eks/`, `ec2/`, `elb/`, `route53/`) | `MODULE-005` | `component_outside_domain_folder` |
 | EKS capacity comes from `eks/node-group`, never a raw Auto Scaling Group | `MODULE-006` | `eks_autoscaling_group_declared_directly` |
 | Every taggable resource carries the mandatory tags | `TAGS-001` | `resource_missing_mandatory_tags` |
 | A module exposes the `tags` and `extra_tags` variables | `TAGS-002` | `module_missing_tag_variables` |
 | An Auto Scaling Group propagates the tags to its instances | `TAGS-003` | `autoscaling_group_does_not_propagate_tags` |
-| No NAT gateway per zone outside protected roots | `COST-001` | `nat_gateway_per_zone_in_unprotected_root` |
 
 The rest of the standard (documented variables and outputs, bounded provider versions, formatting) is checked by TFLint and
 `terraform fmt`/`validate`, which are the authority for it; the style guidance (`for_each` over `count`, `moved` blocks, comments on

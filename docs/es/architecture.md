@@ -24,7 +24,7 @@ No se asume ningún nombre de carpeta. Las raíces salen de `terraform.roots` (g
 | --- | --- |
 | Cambió un archivo de la raíz | `infra-example/dev/web-demo/network.tf` |
 | Cambió un módulo que usa, directamente o a través de otro módulo | `modules/vpc/main.tf` |
-| Cambió un archivo compartido que lee (`file()`, `templatefile()` con rutas `../`) | `common.yaml` |
+| Cambió un archivo compartido que lee (`file()`, `templatefile()` con rutas `../`) | `../shared/policy.json` |
 | Cambió `.terraform-version` | todas las raíces |
 
 Los `*.md` no afectan nada. Las raíces no afectadas nunca se inicializan, planifican, validan ni aplican. La misma lógica da los módulos afectados (`Repo.affected_modules`), sobre los que corren `validate`, TFLint y Checkov.
@@ -33,10 +33,10 @@ Los `*.md` no afectan nada. Las raíces no afectadas nunca se inicializan, plani
 
 | Rama | Llaves (secrets) | Cuenta esperada |
 | --- | --- | --- |
-| `main` (producción) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | `terraform.accounts.main` |
-| `develop` y cualquier otra rama | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | `terraform.accounts.develop` |
+| `main` (producción) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | el `account` de los ambientes con `branch: main` |
+| `develop` y cualquier otra rama | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | el `account` de los ambientes con `branch: develop` |
 
-La rama elige las llaves (la rama destino en un PR, la rama seleccionada en una ejecución manual). Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y la compara con `terraform.accounts`; si no coincide, falta un secret o falta un id, la ejecución se detiene antes de tocar nada. `terraform.deploy.<rama>` lista las raíces que cada rama puede planificar, revisar y aplicar, así que una ejecución en `develop` nunca toca raíces de producción aunque compartan módulos.
+La rama elige las llaves (la rama destino en un PR, la rama seleccionada en una ejecución manual). Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y la compara con el `account` del ambiente que nombra la rama en `terraform.environments`; si no coincide, falta un secret o falta un id, la ejecución se detiene antes de tocar nada. Las `roots` de los ambientes de una rama son las raíces que puede planificar, revisar y aplicar, así que una ejecución en `develop` nunca toca raíces de producción aunque compartan módulos.
 
 ## State
 
@@ -50,7 +50,7 @@ Un state por raíz: clave `<ruta de la raíz>/terraform.tfstate` en el bucket `<
 
 ## El reviewer
 
-`tools/reviewer`: hallazgos de los checks del contrato sobre el código (`rules/rules.yaml` + `rules/code_rules.py`) y de los checks sobre el plan y el costo; luego:
+`tools`: hallazgos de los checks del contrato sobre el código (`rules/rules.yaml` + `rules/code_rules.py`) y de los checks sobre el plan y el costo; luego:
 
 - **Veredicto:** `REQUEST_CHANGES` cuando un hallazgo confirmado es HIGH o CRITICAL o falló un check externo (fmt, ruff y mypy, validate, TFLint, el contrato del repositorio); si no, `PASS`. Por ahora Checkov solo avisa. El riesgo es la mayor severidad encontrada. Un check omitido no es una falla.
 - **`PLAN-001`:** un plan que destruye o reemplaza un recurso con estado es CRITICAL en una raíz protegida (todas las raíces en un PR hacia producción) y HIGH en el resto.
@@ -73,11 +73,8 @@ Apagada por defecto (`ai.enabled`). Recibe un único payload saneado (veredicto,
 | `project` | Primera parte del nombre del bucket de state; también se usa en tags y nombres |
 | `backend.encrypt`, `backend.use_lockfile` | Se pasan a `terraform init` |
 | `ai.enabled` | Activa el resumen de IA |
-| `terraform.accounts.<develop\|main>` | **Obligatorio.** Id de la cuenta AWS de las llaves de esa rama |
-| `terraform.deploy.<rama>` | Globs de las raíces que esa rama puede planificar y aplicar |
 | `terraform.roots`, `terraform.modules` | Fijan las raíces, o las carpetas de módulos (por defecto `modules`) |
-| `terraform.protected` | Raíces donde destruir recursos con estado es CRITICAL |
-| `terraform.conventions.layout` | Reglas opcionales ROOT-001 / ROOT-002 para una familia de raíces |
+| `terraform.environments.<nombre>` | **Obligatorio.** Una entrada por ambiente: `branch` (la rama que lo despliega), `account` (id de la cuenta AWS de las llaves de esa rama) y `roots` (las raíces que le pertenecen). Una raíz toma su tag `environment` de aquí, y un ambiente desplegado desde `main` debe cumplir `POLICY-001`. Los ambientes de una rama comparten sus llaves, así que nombran la misma cuenta |
 
 ## Mapa del código
 
@@ -104,7 +101,7 @@ Aparte, las *Dependabot alerts* del repositorio avisan cuando una dependencia ti
 - Infracost puede no poner precio a recursos que no puede resolver en un plan (por ejemplo un Auto Scaling Group cuyo launch template se crea en el mismo plan); la sección de costo lista lo que no pudo valorar.
 - Las raíces se aplican en orden de ruta; las dependencias entre raíces no se modelan.
 - Producción es la rama por defecto del repositorio.
-- No hay tests unitarios de los módulos ni del reviewer: la corrección se apoya en `validate`, el contrato, el plan y las preconditions. El Python del reviewer se revisa con ruff y mypy en cada PR.
+- No hay tests unitarios de los módulos ni del reviewer: la corrección se apoya en `validate`, el contrato, el plan y las validaciones de los propios módulos. El Python del reviewer se revisa con ruff y mypy en cada PR.
 - La verificación de tags sobre los recursos del plan no se muestra en el comentario; los tags los exige `TAGS-001` sobre el código.
 
 ---

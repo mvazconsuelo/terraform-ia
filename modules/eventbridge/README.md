@@ -5,18 +5,28 @@ EventBridge rules and targets on the default bus or an optional custom bus, with
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+events:
+  name: "${project}-${environment}"
+  rules:
+    nightly:
+      schedule_expression: cron(0 3 * * ? *)
+```
+
 ```hcl
 module "events" {
-  source = "../../modules/eventbridge"
+  source = "../../../modules/eventbridge"
 
-  name = "payments-dev"
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "payments" }
+  name = templatestring(local.inputs.events.name, local.tags)
+  tags = local.tags
 
+  # The rule comes from inputs.yaml; its target is another module's output, so it is wired here.
   rules = {
-    nightly = {
-      schedule_expression = "cron(0 3 * * ? *)"
+    for key, rule in local.inputs.events.rules : key => merge(rule, {
       targets = { job = { arn = module.worker.function_arn, lambda_function_name = module.worker.function_name } }
-    }
+    })
   }
 }
 ```

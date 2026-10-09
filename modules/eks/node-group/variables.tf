@@ -34,8 +34,8 @@ variable "tags" {
   })
 
   validation {
-    condition     = contains(["dev", "staging", "prod"], var.tags.environment)
-    error_message = "tags.environment must be one of: dev, staging, prod."
+    condition     = can(regex("^[a-z][a-z0-9-]{1,19}$", var.tags.environment))
+    error_message = "tags.environment must be 2 to 20 characters: lowercase letters, numbers and hyphens, starting with a letter."
   }
 
   validation {

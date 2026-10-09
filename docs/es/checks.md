@@ -2,7 +2,7 @@
 
 [English](../checks.md) · Español
 
-Todas las reglas que aplica el reviewer, en un solo lugar. El catálogo es [`tools/reviewer/rules/rules.yaml`](../../tools/reviewer/rules/rules.yaml): esta tabla lo refleja.
+Todas las reglas que aplica el reviewer, en un solo lugar. El catálogo es [`tools/rules/rules.yaml`](../../tools/rules/rules.yaml): esta tabla lo refleja.
 
 Una regla tiene un **ID** (`FAMILIA-NÚMERO`), una **severidad** y una **función** que la implementa. La función se llama como lo que detecta y su docstring dice qué regla es.
 
@@ -12,9 +12,9 @@ Una regla tiene un **ID** (`FAMILIA-NÚMERO`), una **severidad** y una **funció
 | --- | --- |
 | `MODULE` | Cómo se construyen los módulos y qué no debe construirse fuera de uno. |
 | `TAGS` | Todo recurso AWS que admite tags lleva los tags obligatorios. |
-| `ROOT` | La estructura de una familia de configuraciones raíz (opcional con `terraform.conventions.layout` en `common.yaml`). |
-| `COST` | Decisiones que cuestan más de lo necesario. |
-| `PLAN` | Qué le hará Terraform a la infraestructura. |
+| `ROOT` | Cómo se arma una raíz: su estructura, sus archivos idénticos entre ambientes, su ambiente y sus tags. |
+| `POLICY` | Los valores del `inputs.yaml` de una raíz frente a la política del proyecto. Un ambiente desplegado desde la rama `main` (`terraform.environments` en `common.yaml`) es de producción. |
+| `PLAN` | Qué hará Terraform a la infraestructura, y cuánto costará. |
 
 ## Las reglas
 
@@ -29,13 +29,17 @@ Una regla tiene un **ID** (`FAMILIA-NÚMERO`), una **severidad** y una **funció
 | `TAGS-001` | High | Un recurso con tags no recibe los tags obligatorios | el código | `resource_missing_mandatory_tags` |
 | `TAGS-002` | Medium | El módulo no expone el contrato de entrada de los tags obligatorios | el código | `module_missing_tag_variables` |
 | `TAGS-003` | High | Un Auto Scaling Group no propaga los tags obligatorios | el código | `autoscaling_group_does_not_propagate_tags` |
-| `ROOT-001` | High | La raíz no sigue su estructura *(opcional)* | el código | `root_breaks_layout` |
-| `ROOT-002` | High | Los archivos de una raíz difieren de los de sus pares *(opcional)* | el código | `root_files_differ` |
-| `COST-001` | Medium | NAT gateway por zona en una configuración no protegida | el código | `nat_gateway_per_zone_in_unprotected_root` |
-| `COST-002` | Medium | Infracost reporta un aumento mensual grande | el plan / Infracost | `plan_cost_increase_above_threshold` |
-| `PLAN-001` | Critical | El plan destruye o reemplaza un recurso con estado | el plan / Infracost | `plan_destroys_stateful_resource` |
+| `ROOT-001` | High | La raíz no sigue su estructura (solo los archivos listados; sin provider, versión ni backend en `main.tf`) | el código | `root_breaks_layout` |
+| `ROOT-002` | High | Los archivos de una raíz difieren de los de sus pares | el código | `root_files_differ` |
+| `ROOT-003` | High | La raíz no está asignada a un ambiente en `common.yaml` | el `inputs.yaml` de la raíz | `root_not_in_an_environment` |
+| `ROOT-004` | High | Los `tags` de la raíz son inválidos (falta owner o centro de costo, o define project o environment) | el `inputs.yaml` de la raíz | `root_tags_invalid` |
+| `ROOT-005` | Medium | Una llamada a un módulo en una raíz reforma valores con un `for`, un condicional o una función (`try`, `merge`, `lookup`...) | el código | `root_call_holds_logic` |
+| `POLICY-001` | High | Una raíz de producción no cumple un requisito (HTTPS, protección y snapshot de la base de datos, NAT por zona, 2+ instancias de base de datos, `min_size >= 2`) | el `inputs.yaml` de la raíz | `production_requirements_not_met` |
+| `PLAN-001` | Critical | El plan destruye o reemplaza un recurso con estado | el plan | `plan_destroys_stateful_resource` |
+| `PLAN-002` | Medium | Infracost reporta un aumento mensual grande | Infracost | `plan_cost_increase_above_threshold` |
 
 - **Checks sobre el código** (`rules/code_rules.py`) leen los archivos `.tf`. El job `repository contract` los ejecuta sobre todo el repositorio; el comentario lista los hallazgos en archivos y carpetas que el PR toca.
+- **Checks sobre el `inputs.yaml` de una raíz** (`inputs_rules.py`) leen los valores que un proyecto da a sus módulos. La política son datos: `POLICY-001` lista sus requisitos en `rules.yaml` (una ruta con puntos dentro de `inputs.yaml` y una prueba), y los nombres de ambiente salen de `common.yaml`, así que otro proyecto cambia los datos y no el código.
 - **Checks sobre el plan** (`rules/plan_rules.py`) leen el plan de Terraform saneado y la estimación de Infracost de cada raíz afectada.
 
 ## Cómo una regla se convierte en veredicto

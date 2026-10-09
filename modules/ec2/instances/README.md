@@ -5,21 +5,36 @@ One or more standalone EC2 instances (bastions, single servers) launched from a 
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+bastion:
+  name: "${project}-${environment}-bastion"
+  termination_protection: true
+  instances:
+    a:
+      instance_type: t3.small
+    b:
+      data_volumes:
+        data:
+          device_name: /dev/sdf
+          size_gb: 100
+```
+
 ```hcl
 module "bastion" {
   source = "../../../modules/ec2/instances"
 
-  name                    = "payments-dev-bastion"
-  launch_template_id      = module.web_template.launch_template_id
-  termination_protection  = true
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "payments" }
+  name                   = templatestring(local.inputs.bastion.name, local.tags)
+  termination_protection = local.inputs.bastion.termination_protection
+  tags                   = local.tags
+  launch_template_id     = module.web_template.launch_template_id
 
+  # The instances come from inputs.yaml; each one gets a private subnet (another module's output) in order.
   instances = {
-    a = { subnet_id = module.vpc.private_subnet_ids[0] }
-    b = {
-      subnet_id    = module.vpc.private_subnet_ids[1]
-      data_volumes = { data = { device_name = "/dev/sdf", size_gb = 100 } }
-    }
+    for index, key in keys(local.inputs.bastion.instances) : key => merge(
+      local.inputs.bastion.instances[key], { subnet_id = module.vpc.private_subnet_ids[index] }
+    )
   }
 }
 ```

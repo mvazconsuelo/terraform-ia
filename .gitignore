@@ -17,4 +17,8 @@ backend.tf
 .history/
 
 # Terminal chat with Gemini: kept local for now, not part of the repository yet
-tools/reviewer/chat/
+tools/chat/
+
+# Python quality-check caches
+.ruff_cache/
+.mypy_cache/

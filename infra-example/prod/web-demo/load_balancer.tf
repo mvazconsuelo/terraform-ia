@@ -1,29 +1,30 @@
+# Certificate: public ACM certificate, validated by DNS
+module "certificate" {
+  source = "../../../modules/acm"
+
+  name                      = templatestring(local.inputs.certificate.name, local.tags)
+  domain_name               = local.inputs.certificate.domain_name
+  subject_alternative_names = local.inputs.certificate.subject_alternative_names
+  zone_id                   = local.inputs.certificate.zone_id
+  tags                      = local.tags
+}
+
 # Load balancer: application load balancer
 module "alb" {
   source = "../../../modules/elb/alb"
 
-  name = local.name
+  name = templatestring(local.inputs.alb.name, local.tags)
   tags = local.tags
 
   vpc_id                     = module.vpc.vpc_id
-  subnet_ids                 = local.inputs.alb.internal ? module.vpc.private_subnet_ids : module.vpc.public_subnet_ids
+  public_subnet_ids          = module.vpc.public_subnet_ids
+  private_subnet_ids         = module.vpc.private_subnet_ids
   security_group_ids         = [module.alb_sg.security_group_id]
   internal                   = local.inputs.alb.internal
   enable_deletion_protection = local.inputs.alb.deletion_protection
 
-  target_groups = {
-    for k, t in local.inputs.alb.target_groups : k => {
-      port        = try(local.named_ports[tostring(t.port)], tonumber(t.port))
-      protocol    = try(t.protocol, "HTTP")
-      target_type = try(t.target_type, "instance")
-      health_check = {
-        path = try(t.health_check_path, "/")
-      }
-    }
-  }
-
-  listeners = local.inputs.alb.listeners
-  rules     = try(local.inputs.alb.rules, {})
-
-  depends_on = [terraform_data.config_validation]
+  target_groups = local.inputs.alb.target_groups
+  listeners     = local.inputs.alb.listeners
+  rules         = local.inputs.alb.rules
+  certificates  = { web = module.certificate.certificate_arn }
 }

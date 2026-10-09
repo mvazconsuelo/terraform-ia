@@ -5,17 +5,27 @@ Lambda function with its log group (retention enforced), optional VPC attachment
 
 ## Usage
 
+Values live in your project's `inputs.yaml`, in block-style YAML; the keys of a block are this module's variable names. `local.tags` are the mandatory tags: `owner` and `cost_center` from your `inputs.yaml`, plus the `project` and the `environment` that `common.yaml` assigns to the root. What comes from other modules is wired in the `.tf`. The `name` of a block is written with the placeholders `${project}` and `${environment}`, and the call completes it with `local.tags` (`templatestring`), so the environment is written once, in `common.yaml`.
+
+```yaml
+worker:
+  function_name: "${project}-${environment}-worker"
+  handler: index.handler
+  runtime: python3.12
+  filename: build/worker.zip
+```
+
 ```hcl
 module "worker" {
-  source = "../../modules/lambda"
+  source = "../../../modules/lambda"
 
-  function_name    = "payments-dev-worker"
+  function_name    = templatestring(local.inputs.worker.function_name, local.tags)
+  handler          = local.inputs.worker.handler
+  runtime          = local.inputs.worker.runtime
+  filename         = local.inputs.worker.filename
+  source_code_hash = filebase64sha256(local.inputs.worker.filename)
+  tags             = local.tags
   role_arn         = module.lambda_role.role_arn
-  handler          = "index.handler"
-  runtime          = "python3.12"
-  filename         = "build/worker.zip"
-  source_code_hash = filebase64sha256("build/worker.zip")
-  tags = { environment = "dev", owner = "platform-team", cost_center = "cc-1234", project = "payments" }
 }
 ```
 
