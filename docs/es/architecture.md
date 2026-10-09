@@ -31,12 +31,12 @@ Los `*.md` no afectan nada. Las raíces no afectadas nunca se inicializan, plani
 
 ## Ramas y cuentas
 
-| Rama | Llaves (secrets) | Cuenta esperada |
+| Rama | Llaves (secrets) | Cuenta esperada (variable) |
 | --- | --- | --- |
-| `main` (producción) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | el `account` de los ambientes con `branch: main` |
-| `develop` y cualquier otra rama | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | el `account` de los ambientes con `branch: develop` |
+| `main` (producción) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | `AWS_ACCOUNT_ID_MAIN` |
+| `develop` y cualquier otra rama | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | `AWS_ACCOUNT_ID_DEVELOP` |
 
-La rama elige las llaves (la rama destino en un PR, la rama seleccionada en una ejecución manual). Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y la compara con el `account` del ambiente que nombra la rama en `terraform.environments`; si no coincide, falta un secret o falta un id, la ejecución se detiene antes de tocar nada. Las `roots` de los ambientes de una rama son las raíces que puede planificar, revisar y aplicar, así que una ejecución en `develop` nunca toca raíces de producción aunque compartan módulos.
+La rama elige las llaves (la rama destino en un PR, la rama seleccionada en una ejecución manual). Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y la compara con la variable del repositorio de esa rama; si no coincide, falta un secret o falta la variable, la ejecución se detiene antes de tocar nada. Las `roots` de los ambientes de una rama son las raíces que puede planificar, revisar y aplicar, así que una ejecución en `develop` nunca toca raíces de producción aunque compartan módulos.
 
 ## State
 
@@ -76,7 +76,7 @@ Apagada por defecto (`ai.enabled`). Recibe un único payload saneado (veredicto,
 | `backend.encrypt`, `backend.use_lockfile` | Se pasan a `terraform init` |
 | `ai.enabled` | Activa el resumen de IA |
 | `terraform.roots`, `terraform.modules` | Fijan las raíces, o las carpetas de módulos (por defecto `modules`) |
-| `terraform.environments.<nombre>` | **Obligatorio.** Una entrada por ambiente: `branch` (la rama que lo despliega), `account` (id de la cuenta AWS de las llaves de esa rama) y `roots` (las raíces que le pertenecen). Una raíz toma su tag `environment` de aquí, y un ambiente desplegado desde `main` debe cumplir `POLICY-001`. Los ambientes de una rama comparten sus llaves, así que nombran la misma cuenta |
+| `terraform.environments.<nombre>` | **Obligatorio.** Una entrada por ambiente: `branch` (la rama que lo despliega) y `roots` (las raíces que le pertenecen). Una raíz toma su tag `environment` de aquí, y un ambiente desplegado desde `main` debe cumplir `POLICY-001`. La cuenta de AWS de cada rama no está acá: es una variable del repositorio (`AWS_ACCOUNT_ID_DEVELOP`, `AWS_ACCOUNT_ID_MAIN`) |
 
 ## Mapa del código
 
@@ -103,7 +103,7 @@ Aparte, las *Dependabot alerts* del repositorio avisan cuando una dependencia ti
 - Infracost puede no poner precio a recursos que no puede resolver en un plan (por ejemplo un Auto Scaling Group cuyo launch template se crea en el mismo plan); la sección de costo lista lo que no pudo valorar.
 - Las raíces se aplican en orden de ruta; las dependencias entre raíces no se modelan.
 - Producción es la rama por defecto del repositorio.
-- Los tests (`tests/`) cubren el reviewer (cada regla, el veredicto, qué raíces alcanza una ejecución, la redacción de secretos) y los módulos que resuelven o validan algo. Se ejecutan solo en el pipeline, sin AWS ni secrets. Lo único que no cubren es el comportamiento de un `apply` real: ese se apoya en `validate`, el plan y las validaciones de los propios módulos.
+- Los tests (`tests/`) cubren el reviewer (cada regla, el veredicto, qué raíces alcanza una ejecución, el guard de cuenta, la redacción de secretos) y los módulos que resuelven o validan algo. Se ejecutan solo en el pipeline, sin AWS ni secrets. Lo único que no cubren es el comportamiento de un `apply` real: ese se apoya en `validate`, el plan y las validaciones de los propios módulos.
 - La verificación de tags sobre los recursos del plan no se muestra en el comentario; los tags los exige `TAGS-001` sobre el código.
 
 ---

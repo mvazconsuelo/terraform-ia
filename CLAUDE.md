@@ -26,7 +26,7 @@ This file is the single place for the project's conventions. The agent `terrafor
   | Infrastructure values or a root (`inputs.yaml`, a new environment or stack) | `infra/<environment>-<what>` | `develop` for non-production, `main` for production | The owner runs `plan`, then `apply`, by hand |
 
   A branch name never says "deploy": merging deploys nothing. Production reaches `main` by a PR from `develop`, after it was applied in `dev`.
-- **Nothing secret in files or in the chat.** Never write or repeat a key or a token, and never write an account id except the `account` of an environment in `common.yaml`. If the owner pastes a key, say it must be rotated.
+- **Nothing secret in files or in the chat.** Never write or repeat a key or a token, and and never write an AWS account id in a file (it is the repository variable `AWS_ACCOUNT_ID_DEVELOP` or `AWS_ACCOUNT_ID_MAIN`). If the owner pastes a key, say it must be rotated.
 - **Docs are English with a Spanish copy** (`README.es.md`, `docs/es/*.md`, `infra-example/README.es.md`). Change both, always. File
   names, rule IDs and code stay untranslated. Docs are short and describe what exists; no "run it locally" sections, everything runs from a PR.
 - **Ask before outward or hard-to-reverse actions** (workflow or secret settings, deleting files). Read a file before you say what it holds.
@@ -44,7 +44,7 @@ This file is the single place for the project's conventions. The agent `terrafor
 - **The verdict is deterministic code:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed. The AI never
   decides and never receives file contents.
 - **`common.yaml` holds facts about the infrastructure:** `project`, `backend`, `ai`, and `terraform.environments` (each environment with its
-  `branch`, its AWS `account` and its `roots`). Rules are not defined there: they live in `tools/rules/rules.yaml`, grouped by theme (MODULE, TAGS, ROOT, POLICY, PLAN).
+  `branch` and its `roots`; the AWS account of each branch is a repository variable, not a file). Rules are not defined there: they live in `tools/rules/rules.yaml`, grouped by theme (MODULE, TAGS, ROOT, POLICY, PLAN).
 - **Terraform `>= 1.11`.**
 
 ## Where things live

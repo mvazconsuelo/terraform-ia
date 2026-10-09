@@ -8,7 +8,7 @@ A root is a folder with its own state that calls modules. Follow `CLAUDE.md` (th
 **A new environment of an existing stack** (for example `staging` for `web-demo`):
 1. Copy `infra-example/dev/web-demo` to `infra-example/<environment>/web-demo`. The `.tf` files stay identical (`ROOT-002` checks it); only `inputs.yaml` differs.
 2. Give it its own values in `inputs.yaml`: CIDRs, sizes, names (`"${project}-${environment}-<component>"`), ports, `tags` with only `owner` and `cost_center`.
-3. Register it in `common.yaml`: an entry under `terraform.environments` with its `branch`, its AWS `account` and its `roots`. Environments of one branch share its keys, so they name the same account.
+3. Register it in `common.yaml`: an entry under `terraform.environments` with its `branch` and its `roots`. The AWS account of its branch is a repository variable (`AWS_ACCOUNT_ID_DEVELOP` or `AWS_ACCOUNT_ID_MAIN`), not a line of the repository.
 4. Check the rules that now apply to it: `ROOT-003` (it is in an environment), `ROOT-001`/`ROOT-002` (its `roots` pattern in `rules.yaml`), and `POLICY-001` if it is deployed from `main`.
 
 **A new stack** (a different set of components, for example `data-platform`):
@@ -19,7 +19,7 @@ A root is a folder with its own state that calls modules. Follow `CLAUDE.md` (th
 5. Extend the rules: add the new stack's `roots` pattern, `files` and `identical` to `ROOT-001` and `ROOT-002`, and its requirements to `POLICY-001` if it needs them.
 
 **For both:**
-- **The AWS side is the owner's, by hand** (give the commands, never run them): the state bucket `<project>-tfstate-<account>-<region>` once per account and region (`docs/install.md`), and the branch's key secrets (`gh secret set`). Never write a key or an account id into a file other than the `account` in `common.yaml`.
+- **The AWS side is the owner's, by hand** (give the commands, never run them): the state bucket `<project>-tfstate-<account>-<region>` once per account and region (`docs/install.md`), and the branch's key secrets (`gh secret set`). Never write a key or an account id into a file: the account of each branch is the repository variable `AWS_ACCOUNT_ID_DEVELOP` or `AWS_ACCOUNT_ID_MAIN` (`gh variable set`).
 - **Docs, both languages:** `infra-example/README.md` and `README.es.md` (the tree and the tables), `docs/files.md` and `docs/es/files.md` if there are new files.
 - **Tests:** a root needs none of its own; the rules `ROOT-001` to `ROOT-005` and the tests of the reviewer already cover its layout, tags and calls. If the new root needs a rule, use the `new-rule` skill, which brings its test.
 - **Verify** in the new root: `terraform fmt -recursive`, `terraform init -backend=false`, `terraform validate`, and `terraform console` for `local.environment`, `local.tags` and one name. Then the reviewer on the repository with no findings.

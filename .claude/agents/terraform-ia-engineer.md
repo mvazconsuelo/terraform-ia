@@ -21,7 +21,7 @@ extend it without breaking its conventions. You work by proposing first, and you
    does and what to look for in its output.
 4. **Git is the owner's, and so is every deployment.** Never commit, push, merge or branch; never run or ask to run `terraform apply`, `destroy`, `gh workflow run` or anything against AWS on your own. Say which of your changes are code (they end in a PR) and which need a deployment afterwards. After a change give the git commands and the branch to open the PR into
    (`develop` non-production, `main` production), as `CLAUDE.md` says.
-5. **Nothing leaves the repository.** Never write credentials or keys into a file, nor an account id outside the `account` of an environment in `common.yaml`. Do not touch workflows or secret
+5. **Nothing leaves the repository.** Never write credentials or keys into a file, nor an AWS account id (it is the repository variable `AWS_ACCOUNT_ID_DEVELOP` or `AWS_ACCOUNT_ID_MAIN`). Do not touch workflows or secret
    settings without asking.
 6. If a fact may be out of date, read the file; do not guess. If something is unclear, ask.
 

@@ -9,11 +9,11 @@ Cada archivo y carpeta del repositorio: qué hace, para qué sirve y qué repres
 | Archivo | Qué es |
 | --- | --- |
 | `README.md` / `README.es.md` | Punto de entrada: qué es el proyecto, la arquitectura y por dónde empezar (inglés / español). |
-| `common.yaml` | La configuración compartida del proyecto. Cada raíz lee de ella su `project` y su `environment` (el ambiente es aquel cuya lista de raíces tiene a la raíz; owner y centro de costo están en el `inputs.yaml` de la raíz); el pipeline y el reviewer leen `project` (bucket de state y checks) y `backend`, `ai` y `terraform` (`environments`, cada uno con su `branch`, `account` y `roots`, y los opcionales `roots`, `modules`, `protected`, `conventions`). Es el único lugar que un equipo edita para adaptar la plataforma a sus cuentas. |
+| `common.yaml` | La configuración compartida del proyecto. Cada raíz lee de ella su `project` y su `environment` (el ambiente es aquel cuya lista de raíces tiene a la raíz; owner y centro de costo están en el `inputs.yaml` de la raíz); el pipeline y el reviewer leen `project` (bucket de state y checks) y `backend`, `ai` y `terraform` (`environments`, cada uno con su `branch` y `roots`, y los opcionales `roots`, `modules`, `protected`, `conventions`). Es el único lugar que un equipo edita para adaptar la plataforma a sus cuentas. |
 | `.terraform-version` | La versión de Terraform para herramientas como tfenv (los workflows fijan `~> 1.16.0`). Un cambio en él marca todas las raíces como "afectadas". |
 | `.tflint.hcl` | Configuración de TFLint: los conjuntos de reglas de Terraform y AWS y las reglas activas (versión requerida y providers, variables y outputs documentados y tipados, nombres). |
 | `LICENSE` | La licencia MIT: cualquiera puede usar, copiar, modificar y distribuir el código, conservando el aviso de copyright. |
-| `CONTRIBUTING.md`, `SECURITY.md` | Cómo contribuir y cómo reportar una vulnerabilidad (copias en español en `docs/es/contributing.md` y `docs/es/security.md`). GitHub los muestra en el repositorio. |
+| `CONTRIBUTING.md`, `SECURITY.md` | Cómo proponer algo (un issue; los pull requests son del mantenedor) y cómo reportar una vulnerabilidad (copias en español en `docs/es/contributing.md` y `docs/es/security.md`). GitHub los muestra en el repositorio. |
 | `CLAUDE.md` | Lo que Claude Code lee en cada sesión: cómo funciona el repositorio, dónde está cada cosa y todas las convenciones. El único lugar donde cambiar una convención. |
 | `.claude/agents/terraform-ia-engineer.md` | El asistente del proyecto para Claude Code. Lee `CLAUDE.md`, propone y espera tu aprobación, nunca ejecuta comandos y te da los comandos git para que los ejecutes tú. |
 | `.claude/settings.json`, `.claude/hooks/after_edit.py` | Claude Code ejecuta el hook después de cada edición: `ruff` y `mypy` tras un cambio en `tools/`, `terraform fmt` tras un cambio en un `.tf`. Si un check falla, la salida vuelve a Claude para que corrija el archivo. `settings.json` además bloquea los comandos que son del dueño: las escrituras de git (`add`, `commit`, `push`, `merge`...), `gh workflow run` y los demás comandos de `gh` que publican o cambian ajustes, y `terraform apply`, `destroy`, `import` y `state`. |
@@ -107,7 +107,7 @@ del paso que ves en GitHub.
 | `terraform_validate.py` | terraform validate | `terraform validate` en los módulos y raíces que afecta un PR, con una caché de providers compartida. |
 | `terraform_tflint.py` | TFLint | TFLint, con el `.tflint.hcl` del repositorio, sobre los módulos afectados. |
 | `terraform_checkov.py` | Checkov | Checkov sobre los módulos afectados; publica la cantidad de hallazgos. |
-| `terraform_init.py` | terraform init | Elige las llaves AWS de la rama, comprueba su cuenta contra la cuenta de su ambiente, comprueba el bucket de state y luego ejecuta `terraform init`. |
+| `terraform_init.py` | terraform init | Elige las llaves AWS de la rama, comprueba su cuenta contra la variable del repositorio de la rama, comprueba el bucket de state y luego ejecuta `terraform init`. |
 | `terraform_plan.py` | terraform plan | `terraform plan` de una raíz, guardado en `tfplan`. |
 | `terraform_show_json.py` | terraform show -json | El plan guardado como JSON (`terraform show -json`) reducido a un resumen saneado que lee la revisión. El plan sin procesar nunca se escribe en disco. |
 | `terraform_versions.py` | terraform versions | Registra qué versiones de Terraform y de providers usó el plan, en `versions-<slug>.json`. Es informativo: nunca hace fallar el job. |
@@ -179,6 +179,7 @@ Todos los tests viven acá y **solo los ejecuta el pipeline** (job `tests`, paso
 | `reviewer/test_rules_module.py`, `test_rules_root.py`, `test_rules_policy.py`, `test_rules_plan.py` | Un archivo por tema de `rules.yaml`. Toda regla tiene un test que la hace saltar (`test_<id de la regla>_flags_<qué>`). |
 | `reviewer/test_every_rule_has_tests.py` | Falla cuando una regla no tiene un test que la haga saltar, o cuando el repositorio rompe una de sus propias reglas. |
 | `reviewer/test_verdict.py` | `PASS` o `REQUEST_CHANGES` a partir de los hallazgos y los checks. |
+| `reviewer/test_account_guard.py` | A qué cuenta deben pertenecer las llaves de una rama (las variables del repositorio), que el comentario del PR muestre solo los últimos cuatro dígitos y que `common.yaml` no lleve ningún id de cuenta. |
 | `reviewer/test_select_roots.py`, `test_affected_roots.py` | Qué raíces alcanza una ejecución o un cambio, y qué puede desplegar una rama. |
 | `reviewer/test_redact_secrets.py` | Que las claves y contraseñas se oculten antes de que algo salga del repositorio. |
 | `reviewer/test_every_module_has_a_terraform_test.py` | Falla cuando un módulo no tiene su test en `terraform/`, salvo los módulos de su lista `PENDING` (lo pendiente). |

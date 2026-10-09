@@ -33,7 +33,7 @@ que aplica el reviewer (`POLICY-001`).
 
 | Configuración | Dónde |
 | --- | --- |
-| Nombre del proyecto, state, interruptor de IA, cuentas | `common.yaml` en la raíz del repositorio |
+| Nombre del proyecto, state, interruptor de IA | `common.yaml` en la raíz del repositorio |
 | Owner, centro de costo y todo lo demás del ambiente | `inputs.yaml` |
 | Nombres de los componentes | un `name` en cada bloque de `inputs.yaml`, con el nombre físico completo (`terraform-ia-dev-db`); el `.tf` solo lo lee |
 | Tags obligatorios | `owner` y `cost_center` en el bloque `tags:` del `inputs.yaml` de cada raíz (cada proyecto pone los suyos), más el `project` y el `environment` de `common.yaml`; `main.tf` los une en `local.tags` y cada llamada a un módulo pasa `tags = local.tags` |
@@ -98,8 +98,8 @@ Dev está dimensionado para ser barato pero no es gratis: destrúyelo cuando no 
 
 ## Agregar un ambiente
 
-Copia `infra-example/dev/web-demo` a `infra-example/<ambiente>/web-demo`, edita los valores y agrega el ambiente nuevo bajo `terraform.environments` en `common.yaml`, con su `branch`, su `account` y sus `roots`. El bucket y la clave del state salen de
-la carpeta y de la cuenta.
+Copia `infra-example/dev/web-demo` a `infra-example/<ambiente>/web-demo`, edita los valores y agrega el ambiente nuevo bajo `terraform.environments` en `common.yaml`, con su `branch` y sus `roots`. El bucket y la clave del state salen de
+la carpeta y de la cuenta de su rama (una variable del repositorio, ver [Instalación](../docs/es/install.md)).
 
 ---
 

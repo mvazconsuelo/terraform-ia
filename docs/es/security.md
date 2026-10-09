@@ -23,4 +23,4 @@ También se agradece una debilidad en una dependencia o en una GitHub Action: De
 
 ## Si usás este repositorio
 
-Nunca subas llaves. Si una llave se expuso, rotala primero y limpiá después. Las llaves de AWS viven en los secrets del repositorio, un par por rama.
+Nunca subas llaves ni ids de cuenta. Si una llave se expuso, rotala primero y limpiá después. Las llaves de AWS viven en los secrets del repositorio, un par por rama.

@@ -34,9 +34,9 @@ No asume nombres de carpeta: funciona igual con `infra/web`, `terraform/networki
 **Instalar** (detalle en [Instalación](docs/es/install.md)):
 
 1. Usá este repositorio (fork o clon). `main` es producción; creá `develop`.
-2. En [`common.yaml`](common.yaml) definí el `project` y cada ambiente: su `branch`, su `account` de AWS y sus `roots`.
+2. En [`common.yaml`](common.yaml) definí el `project` y cada ambiente: su `branch` y sus `roots`.
 3. Creá el bucket de state una vez por cuenta y región: `<project>-tfstate-<id de cuenta>-<región>`.
-4. Cargá los secrets: `AWS_ACCESS_KEY_ID_DEVELOP` / `AWS_SECRET_ACCESS_KEY_DEVELOP`, el par `..._MAIN` y `AWS_REGION` (`gh secret set <NOMBRE>`).
+4. Cargá los secrets: `AWS_ACCESS_KEY_ID_DEVELOP` / `AWS_SECRET_ACCESS_KEY_DEVELOP`, el par `..._MAIN` y `AWS_REGION` (`gh secret set <NOMBRE>`); y las variables `AWS_ACCOUNT_ID_DEVELOP` y `AWS_ACCOUNT_ID_MAIN` (`gh variable set <NOMBRE>`): la cuenta a la que debe pertenecer cada par de llaves, que no está escrita en el repositorio.
 
 **Usar**:
 
@@ -57,7 +57,7 @@ Para ir más lejos: [agregar un ambiente](infra-example/README.es.md#agregar-un-
 | | |
 | --- | --- |
 | **Descubrimiento de raíces afectadas** | Un grafo de llamadas entre módulos construido con las rutas locales de `source`. Las raíces editadas, los módulos editados (de forma transitiva) y los archivos compartidos editados se traducen a raíces. La documentación no dispara nada. |
-| **Rama → cuenta** | `develop` y `main` usan llaves AWS distintas. Antes de `init`, el pipeline compara la cuenta de las llaves con la que `terraform.environments` nombra para la rama y se detiene si no coinciden. |
+| **Rama → cuenta** | `develop` y `main` usan llaves AWS distintas. Antes de `init`, el pipeline compara la cuenta de las llaves con la variable del repositorio de esa rama y se detiene si no coinciden. |
 | **Veredicto determinista** | `REQUEST_CHANGES` ante cualquier hallazgo HIGH o CRITICAL o un check fallido; si no, `PASS`. La IA nunca participa. |
 | **Reviewer** | Reglas (límites de módulos, tags obligatorios, plan y costo contra los estándares) sobre `terraform`, TFLint, Checkov e Infracost. |
 | **Resumen de IA** | Un texto validado contra un esquema y verificado: cada recurso, archivo y precio que menciona se contrasta con la evidencia. Apagado por defecto; un modelo que falla nunca cambia el resultado. |
@@ -120,7 +120,7 @@ Cada módulo tiene su propio README con uso, recursos, entradas, salidas, ciclo 
 
 ## Contribuir, seguridad y licencia
 
-Cómo contribuir: [CONTRIBUTING.md](docs/es/contributing.md). Cómo reportar una vulnerabilidad (en privado): [SECURITY.md](docs/es/security.md). Licencia: [MIT](LICENSE).
+Las ideas y los errores van en un issue; los pull requests los abre el mantenedor: [CONTRIBUTING.md](docs/es/contributing.md). Cómo reportar una vulnerabilidad (en privado): [SECURITY.md](docs/es/security.md). Licencia: [MIT](LICENSE).
 
 ## Stack
 
@@ -140,7 +140,7 @@ infra-example/        Raíces de ejemplo: dev/web-demo y prod/web-demo
 tests/                Todos los tests, ejecutados solo por el pipeline: tests/reviewer (pytest) y tests/terraform (terraform test)
 tools/                El reviewer: ci/ (un archivo por paso del workflow) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
 .github/workflows/    pull-request.yml (checks, planes, comentario) · terraform.yml (plan / apply)
-common.yaml           proyecto, state, interruptor de IA y los ambientes (rama, cuenta AWS, raíces)
+common.yaml           proyecto, state, interruptor de IA y los ambientes (rama, raíces)
 docs/                 Instalación, arquitectura, mapa de archivos, los checks, estándar de módulos (docs/es/ en español)
 .claude/              agente terraform-ia-engineer (propone, nunca ejecuta comandos) y las skills new-module, new-rule y new-root
 CLAUDE.md             las convenciones que Claude Code lee en cada sesión

@@ -23,4 +23,4 @@ A weakness in a dependency or in a GitHub Action is also welcome: Dependabot cov
 
 ## If you used this repository
 
-Never commit keys. If a key was exposed, rotate it first and then clean up. The AWS keys live in the repository secrets, one pair per branch.
+Never commit keys or account ids. If a key was exposed, rotate it first and then clean up. The AWS keys live in the repository secrets, one pair per branch.

@@ -9,11 +9,11 @@ Every file and folder in the repository: what it does, what it is for and what i
 | File | What it is |
 | --- | --- |
 | `README.md`, `README.es.md` | Entry point: what the project is, the architecture and where to start. English is the default; the Spanish version is `README.es.md`. |
-| `common.yaml` | The shared configuration of the project. Each root reads its `project` and its `environment` from it (the environment is the one whose list of roots has the root; owner and cost center are in the root's `inputs.yaml`); the pipeline and the reviewer read `project` (state bucket and checks) and `backend`, `ai`, and `terraform` (`environments`, each with its `branch`, `account` and `roots`, and the optional `roots`, `modules`, `protected`, `conventions`). It represents the one place a team edits to adapt the platform to its accounts. |
+| `common.yaml` | The shared configuration of the project. Each root reads its `project` and its `environment` from it (the environment is the one whose list of roots has the root; owner and cost center are in the root's `inputs.yaml`); the pipeline and the reviewer read `project` (state bucket and checks) and `backend`, `ai`, and `terraform` (`environments`, each with its `branch` and `roots`, and the optional `roots`, `modules`, `protected`, `conventions`). It represents the one place a team edits to adapt the platform to its accounts. |
 | `.terraform-version` | The Terraform version for tools such as tfenv (the workflows pin `~> 1.16.0`). A change to it makes every root "affected". |
 | `.tflint.hcl` | TFLint configuration: the Terraform and AWS rule sets and the enabled rules (required version and providers, documented and typed variables and outputs, naming). |
 | `LICENSE` | The MIT license: anyone may use, copy, modify and distribute the code, keeping the copyright notice. |
-| `CONTRIBUTING.md`, `SECURITY.md` | How to contribute and how to report a vulnerability (Spanish copies in `docs/es/contributing.md` and `docs/es/security.md`). GitHub shows them in the repository. |
+| `CONTRIBUTING.md`, `SECURITY.md` | How to propose something (an issue; pull requests are the maintainer's) and how to report a vulnerability (Spanish copies in `docs/es/contributing.md` and `docs/es/security.md`). GitHub shows them in the repository. |
 | `CLAUDE.md` | What Claude Code reads in every session: how the repository works, where things live and every convention. The single place to change a convention. |
 | `.claude/agents/terraform-ia-engineer.md` | The project's assistant for Claude Code. It reads `CLAUDE.md`, proposes and waits for approval, never runs commands, and gives you the git commands to run. |
 | `.claude/settings.json`, `.claude/hooks/after_edit.py` | Claude Code runs the hook after every edit: `ruff` and `mypy` after a change in `tools/`, `terraform fmt` after a change in a `.tf` file. If a check fails, the output goes back to Claude so it fixes the file. `settings.json` also blocks the commands that belong to the owner: git writes (`add`, `commit`, `push`, `merge`...), `gh workflow run` and the other `gh` commands that publish or change settings, and `terraform apply`, `destroy`, `import` and `state`. |
@@ -107,7 +107,7 @@ of the step you see in GitHub.
 | `terraform_validate.py` | terraform validate | `terraform validate` in the modules and roots a PR affects, with one shared provider cache. |
 | `terraform_tflint.py` | TFLint | TFLint, with the repository's `.tflint.hcl`, on the affected modules. |
 | `terraform_checkov.py` | Checkov | Checkov on the affected modules; publishes the number of findings. |
-| `terraform_init.py` | terraform init | Picks the branch's AWS keys, checks their account against the account of its environment, checks the state bucket, then `terraform init`. |
+| `terraform_init.py` | terraform init | Picks the branch's AWS keys, checks their account against the repository variable of the branch, checks the state bucket, then `terraform init`. |
 | `terraform_plan.py` | terraform plan | `terraform plan` of one root, saved to `tfplan`. |
 | `terraform_show_json.py` | terraform show -json | The saved plan as JSON (`terraform show -json`) reduced to a sanitized summary the review reads. The raw plan is never written to disk. |
 | `terraform_versions.py` | terraform versions | Records which Terraform and provider versions the plan used, in `versions-<slug>.json`. Informational: it never fails the job. |
@@ -179,6 +179,7 @@ All the tests live here and **only the pipeline runs them** (job `tests`, step `
 | `reviewer/test_rules_module.py`, `test_rules_root.py`, `test_rules_policy.py`, `test_rules_plan.py` | One file per theme of `rules.yaml`. Every rule has a test that flags it (`test_<rule id>_flags_<what>`). |
 | `reviewer/test_every_rule_has_tests.py` | Fails when a rule has no test that flags it, or when the repository breaks one of its own rules. |
 | `reviewer/test_verdict.py` | `PASS` or `REQUEST_CHANGES` from the findings and the checks. |
+| `reviewer/test_account_guard.py` | Which account the keys of a branch must belong to (the repository variables), that the PR comment shows only the last four digits, and that no account id is written in `common.yaml`. |
 | `reviewer/test_select_roots.py`, `test_affected_roots.py` | Which roots a run or a change reaches, and what a branch may deploy. |
 | `reviewer/test_redact_secrets.py` | That keys and passwords are hidden before anything leaves the repository. |
 | `reviewer/test_every_module_has_a_terraform_test.py` | Fails when a module has no test in `terraform/`, except the modules listed in its `PENDING` (the backlog). |

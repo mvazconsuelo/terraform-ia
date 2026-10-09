@@ -26,20 +26,18 @@ backend:
 ai:
   enabled: false                # true once GEMINI_API_KEY exists
 terraform:
-  environments:                 # each environment, defined once: the branch that deploys it, its AWS account and its roots
+  environments:                 # each environment, defined once: the branch that deploys it and its roots
     dev:
       branch: develop
-      account: "111111111111"   # the pipeline stops if the keys of that branch belong to another account
       roots:
         - infra-example/dev/web-demo
     prod:
       branch: main
-      account: "222222222222"
       roots:
         - infra-example/prod/web-demo
 ```
 
-In `terraform:`, `environments` is required (each one needs its `branch`, `account` and `roots`); the rest is optional. See [architecture](architecture.md#configuration).
+In `terraform:`, `environments` is required (each one needs its `branch` and `roots`; the AWS account of each branch is a variable, see below); the rest is optional. See [architecture](architecture.md#configuration).
 
 ## 3. State bucket (once per account and region)
 
@@ -71,7 +69,23 @@ gh secret set AWS_ACCESS_KEY_ID_DEVELOP
 `gh secret set` stores one secret per command and asks for its value, so it never lands in your shell history. Never commit keys; rotate any that were exposed.
 
 
-## 5. Open a PR
+## 5. Variables (repository level)
+
+The AWS account each pair of keys must belong to is **not written in the repository**: it is a repository variable (not a secret, and not public: only who collaborates in the repository sees it).
+Before `init` the pipeline asks AWS for the account of the keys and stops if it is not this one.
+
+| Variable | Required | Use |
+| --- | --- | --- |
+| `AWS_ACCOUNT_ID_DEVELOP` | yes | The account of the `develop` keys (and of every other branch) |
+| `AWS_ACCOUNT_ID_MAIN` | yes | The account of the `main` keys (production) |
+
+```bash
+gh variable set AWS_ACCOUNT_ID_DEVELOP --body "<dev account id>"
+gh variable set AWS_ACCOUNT_ID_MAIN --body "<production account id>"
+```
+Or in `https://github.com/<owner>/<repo>/settings/variables/actions`. If a variable is missing, the run stops and says which one.
+
+## 6. Open a PR
 
 Branch from `develop`, change something small and open a PR into `develop`. You get one check per concern, a read-only `plan` for each affected root, and a comment with the verdict, the plan, the cost and the environment it lands on. **Merging never touches AWS.** To deploy, run `terraform.yml` by hand (below); the first apply creates billable resources (Aurora, load balancer).
 

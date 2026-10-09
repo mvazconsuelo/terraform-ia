@@ -31,12 +31,12 @@ No folder name is assumed. Roots come from `terraform.roots` (globs) or are infe
 
 ## Branches and accounts
 
-| Branch | Keys (secrets) | Expected account |
+| Branch | Keys (secrets) | Expected account (variable) |
 | --- | --- | --- |
-| `main` (production) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | the `account` of the environments with `branch: main` |
-| `develop` and any other branch | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | the `account` of the environments with `branch: develop` |
+| `main` (production) | `AWS_ACCESS_KEY_ID_MAIN`, `AWS_SECRET_ACCESS_KEY_MAIN` | `AWS_ACCOUNT_ID_MAIN` |
+| `develop` and any other branch | `AWS_ACCESS_KEY_ID_DEVELOP`, `AWS_SECRET_ACCESS_KEY_DEVELOP` | `AWS_ACCOUNT_ID_DEVELOP` |
 
-The branch picks the keys (the target branch for a PR, the selected branch for a manual run). Before `init` the pipeline asks AWS for the keys' account and compares it with the `account` of the environment that names the branch in `terraform.environments`; a mismatch, a missing secret or a missing id stops the run before anything is touched. The `roots` of the environments of a branch are the roots it may plan, review and apply, so a run on `develop` never touches production roots even when they share modules.
+The branch picks the keys (the target branch for a PR, the selected branch for a manual run). Before `init` the pipeline asks AWS for the keys' account and compares it with the repository variable of that branch; a mismatch, a missing secret or a missing variable stops the run before anything is touched. The `roots` of the environments of a branch are the roots it may plan, review and apply, so a run on `develop` never touches production roots even when they share modules.
 
 ## State
 
@@ -76,7 +76,7 @@ Off by default (`ai.enabled`). It receives one sanitized payload (verdict, affec
 | `backend.encrypt`, `backend.use_lockfile` | Passed to `terraform init` |
 | `ai.enabled` | Turns the AI summary on |
 | `terraform.roots`, `terraform.modules` | Pin the roots, or the modules folders (default `modules`) |
-| `terraform.environments.<name>` | **Required.** One entry per environment: `branch` (the branch that deploys it), `account` (AWS account id of that branch's keys) and `roots` (the roots that belong to it). A root takes its `environment` tag from here, and an environment deployed from `main` must meet `POLICY-001`. Environments of one branch share its keys, so they name the same account |
+| `terraform.environments.<name>` | **Required.** One entry per environment: `branch` (the branch that deploys it) and `roots` (the roots that belong to it). A root takes its `environment` tag from here, and an environment deployed from `main` must meet `POLICY-001`. The AWS account of each branch is not here: it is a repository variable (`AWS_ACCOUNT_ID_DEVELOP`, `AWS_ACCOUNT_ID_MAIN`) |
 
 ## Code map
 
@@ -103,7 +103,7 @@ Separately, the *Dependabot alerts* of the repository warn when a dependency has
 - Infracost may not price resources it cannot resolve in a plan (for example an Auto Scaling Group whose launch template is created in the same plan); the cost section lists what it could not price.
 - Roots are applied in path order; dependencies between roots are not modelled.
 - Production means the repository's default branch.
-- The tests (`tests/`) cover the reviewer (every rule, the verdict, which roots a run reaches, the redaction of secrets) and the modules that resolve or validate something. They run only in the pipeline, with no AWS and no secrets. Only the behaviour of a real `apply` is not covered: it rests on `validate`, the plan and the modules' own validations.
+- The tests (`tests/`) cover the reviewer (every rule, the verdict, which roots a run reaches, the account guard, the redaction of secrets) and the modules that resolve or validate something. They run only in the pipeline, with no AWS and no secrets. Only the behaviour of a real `apply` is not covered: it rests on `validate`, the plan and the modules' own validations.
 - The tag check on planned resources is not shown in the comment; tags are enforced on the code by `TAGS-001`.
 
 ---

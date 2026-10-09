@@ -34,9 +34,9 @@ No folder names are assumed: it works the same for `infra/web`, `terraform/netwo
 **Install** (details in [Setup](docs/install.md)):
 
 1. Use this repository (fork or clone). `main` is production; create `develop`.
-2. In [`common.yaml`](common.yaml) set the `project` and each environment: its `branch`, its AWS `account` and its `roots`.
+2. In [`common.yaml`](common.yaml) set the `project` and each environment: its `branch` and its `roots`.
 3. Create the state bucket once per account and region: `<project>-tfstate-<account id>-<region>`.
-4. Add the secrets: `AWS_ACCESS_KEY_ID_DEVELOP` / `AWS_SECRET_ACCESS_KEY_DEVELOP`, the `..._MAIN` pair, and `AWS_REGION` (`gh secret set <NAME>`).
+4. Add the secrets: `AWS_ACCESS_KEY_ID_DEVELOP` / `AWS_SECRET_ACCESS_KEY_DEVELOP`, the `..._MAIN` pair, and `AWS_REGION` (`gh secret set <NAME>`); and the variables `AWS_ACCOUNT_ID_DEVELOP` and `AWS_ACCOUNT_ID_MAIN` (`gh variable set <NAME>`): the account each pair of keys must belong to, which is not written in the repository.
 
 **Use**:
 
@@ -57,7 +57,7 @@ To go further: [add an environment](infra-example/README.md#adding-an-environmen
 | | |
 | --- | --- |
 | **Affected-root discovery** | A module-call graph built from local `source` paths. Edited roots, edited modules (transitively) and edited shared files are mapped to roots. Docs trigger nothing. |
-| **Branch → account** | `develop` and `main` use different AWS keys. Before `init`, the pipeline compares the keys' account with the one `terraform.environments` names for the branch and stops on a mismatch. |
+| **Branch → account** | `develop` and `main` use different AWS keys. Before `init`, the pipeline compares the keys' account with the repository variable of the branch and stops on a mismatch. |
 | **Deterministic verdict** | `REQUEST_CHANGES` on any HIGH or CRITICAL finding or failed check; otherwise `PASS`. The AI never takes part. |
 | **Reviewer** | Rules (module boundaries, mandatory tags, plan and cost against the standards) on top of `terraform`, TFLint, Checkov and Infracost. |
 | **AI summary** | One text, schema-validated and grounded: every resource, file and price it mentions is checked against the evidence. Off by default; a failing model never changes the result. |
@@ -120,7 +120,7 @@ Each module has its own README with usage, resources, inputs, outputs, lifecycle
 
 ## Contributing, security and license
 
-How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). How to report a vulnerability (privately): [SECURITY.md](SECURITY.md). License: [MIT](LICENSE).
+Ideas and bugs go in an issue; pull requests are opened by the maintainer: [CONTRIBUTING.md](CONTRIBUTING.md). How to report a vulnerability (privately): [SECURITY.md](SECURITY.md). License: [MIT](LICENSE).
 
 ## Stack
 
@@ -140,7 +140,7 @@ infra-example/        Example roots: dev/web-demo and prod/web-demo
 tests/                Every test, run only by the pipeline: tests/reviewer (pytest) and tests/terraform (terraform test)
 tools/                The reviewer: ci/ (one file per workflow step) · lib/ · terraform/ · rules/ · review/ · infracost/ · aws/ · ai/
 .github/workflows/    pull-request.yml (checks, plans, comment) · terraform.yml (plan / apply)
-common.yaml           project, state settings, AI switch, and the environments (branch, AWS account, roots)
+common.yaml           project, state settings, AI switch, and the environments (branch, roots)
 docs/                 Setup, architecture, file map, the checks, module standard
 .claude/              terraform-ia-engineer agent (proposes, never runs commands) and the skills new-module, new-rule and new-root
 CLAUDE.md             the conventions Claude Code reads in every session
