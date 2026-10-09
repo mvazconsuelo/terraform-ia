@@ -51,7 +51,7 @@ lib/git_diff → qué cambió  ─►  terraform/ → qué afecta  ─►  rules
 | `review/` | La revisión en sí: el veredicto y el comentario del PR. |
 | `infracost/`, `aws/`, `versions/` | Leer los datos de Infracost; comprobar a qué cuenta AWS pertenecen las llaves; buscar versiones nuevas de Terraform y de los providers. |
 | `ai/` | El resumen opcional de IA. |
-| `chat/` | Un chat en la terminal con Gemini que responde preguntas sobre el proyecto a partir de su documentación (`terminal_chat.py`) y, con `/reviews`, a partir de los comentarios de review de los PR recientes: planes, costos, versiones y hallazgos por fecha (`pr_reviews.py`, se leen con `gh`). `format_terminal.py` da formato a las respuestas (instala `rich` para ver tablas). Solo lectura: sin archivos, comandos ni AWS. Se ejecuta a mano con tu propia `GEMINI_API_KEY`: `python -m tools.chat.terminal_chat`. |
+| `chat/` | **Lo próximo, en desarrollo; todavía no está en el repositorio** (es local y git lo ignora). Un chat de terminal de solo lectura con Gemini que responderá preguntas sobre el proyecto a partir de su documentación y, con `/reviews`, a partir de los comentarios de review de los PR recientes: planes, costos, versiones, hallazgos por fecha. |
 | `lib/` | Utilidades que puede usar cualquier carpeta y que no son pasos de workflow: `git_diff.py` (los archivos que cambia un PR: `git diff base...HEAD`, solo cambios confirmados en commits), `github_actions.py` (escribe `$GITHUB_OUTPUT` y `$GITHUB_STEP_SUMMARY`, reporta errores, indica el modo y la rama) `workflow_jobs.py` (los jobs de la ejecución actual con un enlace a cada uno, para el comentario) y `redact_secrets.py` (oculta credenciales en el texto y los valores que recibe la IA). |
 
 ### `terraform/`: entender el código de Terraform y el plan
@@ -190,6 +190,7 @@ Todos los tests viven acá y **solo los ejecuta el pipeline** (job `tests`, paso
 | Archivo | Qué es |
 | --- | --- |
 | `install.md` | Instalación, desde un repositorio vacío hasta el primer PR. |
+| `claude.md` | Cómo trabajar con Claude Code: lo que el repositorio le da (agente, skills, hook, bloqueos), cómo iniciarlo y el flujo con el agente. |
 | `architecture.md` | Cómo funcionan el descubrimiento, las ramas y cuentas, el state, los pipelines, el reviewer y la frontera de la IA. |
 | `module-standard.md` | El contrato que sigue cada módulo. |
 | `files.md` | Este archivo. |

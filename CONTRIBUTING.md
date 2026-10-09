@@ -32,4 +32,4 @@ For a security problem, do not open an issue: see [`SECURITY.md`](SECURITY.md).
 ## Where to start
 
 The conventions are in [`CLAUDE.md`](CLAUDE.md). [`docs/module-standard.md`](docs/module-standard.md) is the contract of a module, [`docs/checks.md`](docs/checks.md) lists every rule and
-[`docs/files.md`](docs/files.md) says what each file is. The repository has an agent and the skills `new-module`, `new-rule` and `new-root` for Claude Code that follow all of this.
+[`docs/files.md`](docs/files.md) says what each file is. The repository has an agent and the skills `new-module`, `new-rule` and `new-root` for Claude Code that follow all of this: see [`docs/claude.md`](docs/claude.md).

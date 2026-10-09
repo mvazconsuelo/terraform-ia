@@ -16,7 +16,7 @@ backend.tf
 # Editor local history (VS Code Local History extension): copies of files, never commit
 .history/
 
-# Terminal chat with Gemini: kept local for now, not part of the repository yet
+# Terminal chat with Gemini: next, in development. It stays local and out of the repository until it is ready
 tools/chat/
 
 # Python quality-check caches

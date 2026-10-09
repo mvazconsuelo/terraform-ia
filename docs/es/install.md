@@ -63,7 +63,20 @@ aws s3api put-public-access-block --bucket $B --public-access-block-configuratio
 Dónde guardarlos: `https://github.com/<owner>/<repo>/settings/secrets/actions` (reemplaza `<owner>/<repo>`) · [documentación de GitHub sobre secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets) · [`gh secret set`](https://cli.github.com/manual/gh_secret_set).
 
 ```bash
+# Obligatorios: las llaves de cada rama y la región
 gh secret set AWS_ACCESS_KEY_ID_DEVELOP
+gh secret set AWS_SECRET_ACCESS_KEY_DEVELOP
+gh secret set AWS_ACCESS_KEY_ID_MAIN
+gh secret set AWS_SECRET_ACCESS_KEY_MAIN
+gh secret set AWS_REGION
+
+# Opcionales: la sección de costos y el resumen de IA
+gh secret set INFRACOST_API_KEY
+gh secret set GEMINI_API_KEY
+gh secret set GEMINI_MODEL
+gh secret set GEMINI_FALLBACK_MODEL
+
+gh secret list      # solo los nombres, nunca los valores
 ```
 
 `gh secret set` guarda un secret por comando y te pide el valor, así que no queda en el historial de tu terminal. Nunca subas llaves al repositorio; rota las que se hayan expuesto.
@@ -83,7 +96,7 @@ Antes de `init` el pipeline le pregunta a AWS la cuenta de las llaves y se detie
 gh variable set AWS_ACCOUNT_ID_DEVELOP --body "<id de la cuenta de dev>"
 gh variable set AWS_ACCOUNT_ID_MAIN --body "<id de la cuenta de producción>"
 ```
-O en `https://github.com/<owner>/<repo>/settings/variables/actions`. Si falta una variable, la ejecución se detiene y dice cuál.
+O en `https://github.com/<owner>/<repo>/settings/variables/actions`. Comprobalas con `gh variable list`. Si falta una variable, la ejecución se detiene y dice cuál.
 
 ## 6. Abre un PR
 
