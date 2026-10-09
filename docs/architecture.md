@@ -44,15 +44,17 @@ One state per root: key `<root path>/terraform.tfstate` in the bucket `<project>
 
 ## Pipelines
 
-**`pull-request.yml`**: `discover` → `fmt` · `python` (ruff, mypy) · `validate` · `tflint` · `checkov` (affected modules) · `contract` → `plan` per affected root (calls `terraform.yml`, read-only) → `review` (comment). A PR into the default branch (production) skips those six checks, which already passed in the PR into `develop`, runs plan, cost and review with the production keys, and marks every root protected. Fork PRs get no secrets and no AI.
+**`pull-request.yml`**: `discover` → `fmt` · `python` (ruff, mypy) · `validate` · `tflint` · `checkov` (affected modules) · `tests` · `contract` → `plan` per affected root (calls `terraform.yml`, read-only) → `review` (comment). A PR into the default branch (production) skips those six checks, which already passed in the PR into `develop`, runs plan, cost and review with the production keys, and marks every root protected. Fork PRs get no secrets and no AI.
 
-**`terraform.yml`**: called by PRs for a read-only plan, and run by hand to plan or apply one root (`gh workflow run`). **Merging a pull request never touches AWS**: deploying is always an explicit, manual run.
+**`terraform.yml`**: called by PRs for a read-only plan, and run by hand to plan or apply one root (`gh workflow run`). **Merging a pull request never touches AWS**: deploying is always an explicit, manual run, and only from a branch that an environment names.
+
+Both workflows: the actions are pinned by commit SHA (Dependabot keeps them current), every job has a timeout, and a new push to a pull request cancels its run in progress. An `apply` is never cancelled: runs of the same root queue.
 
 ## The reviewer
 
 `tools`: findings from contract checks on the code (`rules/rules.yaml` + `rules/code_rules.py`) and checks on the plan and cost, then:
 
-- **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed (fmt, ruff and mypy, validate, TFLint, the repository contract), else `PASS`. Checkov only warns for now. Risk is the highest severity found. A skipped check is not a failure.
+- **Verdict:** `REQUEST_CHANGES` when a confirmed finding is HIGH or CRITICAL or an external check failed (fmt, ruff and mypy, tests, validate, TFLint, the repository contract), else `PASS`. Checkov only warns for now. Risk is the highest severity found. A skipped check is not a failure.
 - **`PLAN-001`:** a plan that destroys or replaces a stateful resource is CRITICAL in a protected root (every root in a PR into production) and HIGH elsewhere.
 - **Comment:** one per PR, updated in place. The header is a coloured box (green for PASS, red or yellow for REQUEST_CHANGES) with the decision and the risk, then a table with the environment, the AWS account, the reviewed commit and the link to the run; then eight sections: AI Gemini summary, affected configurations, checks, Terraform plan (replacements included), cost, versions, repository rules, decision. Each check name and each root's plan link to the log of the job that ran it.
 
@@ -101,7 +103,7 @@ Separately, the *Dependabot alerts* of the repository warn when a dependency has
 - Infracost may not price resources it cannot resolve in a plan (for example an Auto Scaling Group whose launch template is created in the same plan); the cost section lists what it could not price.
 - Roots are applied in path order; dependencies between roots are not modelled.
 - Production means the repository's default branch.
-- There are no unit tests for modules or for the reviewer: correctness rests on `validate`, the contract, the plan and the modules' own validations. The reviewer's Python is checked with ruff and mypy on every PR.
+- The tests (`tests/`) cover the reviewer (every rule, the verdict, which roots a run reaches, the redaction of secrets) and the modules that resolve or validate something. They run only in the pipeline, with no AWS and no secrets. Only the behaviour of a real `apply` is not covered: it rests on `validate`, the plan and the modules' own validations.
 - The tag check on planned resources is not shown in the comment; tags are enforced on the code by `TAGS-001`.
 
 ---

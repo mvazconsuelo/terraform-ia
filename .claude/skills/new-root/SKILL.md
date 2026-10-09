@@ -21,6 +21,7 @@ A root is a folder with its own state that calls modules. Follow `CLAUDE.md` (th
 **For both:**
 - **The AWS side is the owner's, by hand** (give the commands, never run them): the state bucket `<project>-tfstate-<account>-<region>` once per account and region (`docs/install.md`), and the branch's key secrets (`gh secret set`). Never write a key or an account id into a file other than the `account` in `common.yaml`.
 - **Docs, both languages:** `infra-example/README.md` and `README.es.md` (the tree and the tables), `docs/files.md` and `docs/es/files.md` if there are new files.
+- **Tests:** a root needs none of its own; the rules `ROOT-001` to `ROOT-005` and the tests of the reviewer already cover its layout, tags and calls. If the new root needs a rule, use the `new-rule` skill, which brings its test.
 - **Verify** in the new root: `terraform fmt -recursive`, `terraform init -backend=false`, `terraform validate`, and `terraform console` for `local.environment`, `local.tags` and one name. Then the reviewer on the repository with no findings.
 - **Deploy** is never part of the change: the owner runs `terraform.yml` by hand, first as `plan`, after the PR is merged (`gh workflow run terraform.yml --ref <branch> -f mode=plan -f root=<root>`).
 

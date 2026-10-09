@@ -75,12 +75,14 @@ gh secret set AWS_ACCESS_KEY_ID_DEVELOP
 
 Crea una rama desde `develop`, cambia algo pequeño y abre un PR hacia `develop`. Obtienes un check por cada aspecto, un `plan` de solo lectura por cada raíz afectada y un comentario con el veredicto, el plan, el costo y el ambiente al que llega. **Fusionar nunca toca AWS.** Para desplegar, ejecuta `terraform.yml` a mano (abajo); el primer apply crea recursos facturables (Aurora, balanceador de carga).
 
-Ejecución manual (la única forma de desplegar). `--ref` elige la rama, y con ella la cuenta AWS; la raíz debe pertenecer a un ambiente de esa rama:
+Ejecución manual (la única forma de desplegar). `--ref` elige la rama, y con ella las llaves y la cuenta AWS. La rama debe estar nombrada por un ambiente en `common.yaml` y la raíz debe pertenecerle; una ejecución desde cualquier otra rama no hace nada.
 
 ```bash
 gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=plan
 gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=apply
 ```
+
+Lo mismo desde GitHub: *Actions* → **terraform** en la lista de la izquierda (no en *All workflows*, donde el botón no aparece) → **Run workflow**. Elige la rama en *Use workflow from*, escribe la `root` y elige el `mode`: `plan` es el valor por defecto, `apply` hay que elegirlo. El bucket de state de esa cuenta debe existir antes (paso 3).
 
 Si un PR no muestra ningún check, algún archivo de workflow es inválido: ejecuta `actionlint .github/workflows/*.yml`.
 

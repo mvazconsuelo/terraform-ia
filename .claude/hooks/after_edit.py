@@ -1,6 +1,6 @@
 """Runs after Claude edits or writes a file, and checks it with the tool that belongs to it:
 
-  tools/**.py ...... ruff and mypy over tools/            (the same checks as the `python` job of every PR)
+  tools/**.py, tests/**.py ... ruff and mypy over tools/ and tests/   (the same checks as the `python` job of every PR)
   *.tf ............. terraform fmt on that file            (it rewrites the formatting in place)
 
 Claude Code passes the edit as JSON on stdin. When a check fails, the problem goes to stderr and the exit code is 2, which gives the
@@ -31,9 +31,9 @@ def run(command: List[str]) -> Tuple[int, str]:
 
 
 def check_python() -> List[str]:
-    """ruff and mypy over tools/; one message per tool that complains."""
+    """ruff and mypy over tools/ and tests/; one message per tool that complains."""
     problems = []
-    for name, arguments in (("ruff", ["check", "tools"]), ("mypy", ["tools"])):
+    for name, arguments in (("ruff", ["check", "tools", "tests"]), ("mypy", ["tools", "tests"])):
         tool = find_tool(name)
         if tool is None:
             continue                                  # not installed here: the PR's python job still runs it
@@ -65,7 +65,7 @@ def main() -> int:
         return 0                                      # a file outside this project is none of this hook's business
 
     problems: List[str] = []
-    if relative.startswith("tools" + os.sep) and relative.endswith(".py"):
+    if relative.startswith(("tools" + os.sep, "tests" + os.sep)) and relative.endswith(".py"):
         problems = check_python()
     elif relative.endswith(".tf") and not relative.startswith((".history", ".terraform")):
         problems = format_terraform(path)

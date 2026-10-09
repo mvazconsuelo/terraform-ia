@@ -44,15 +44,17 @@ Un state por raíz: clave `<ruta de la raíz>/terraform.tfstate` en el bucket `<
 
 ## Pipelines
 
-**`pull-request.yml`**: `discover` → `fmt` · `python` (ruff, mypy) · `validate` · `tflint` · `checkov` (módulos afectados) · `contract` → `plan` por cada raíz afectada (llama a `terraform.yml`, solo lectura) → `review` (comentario). Un PR hacia la rama por defecto (producción) omite esos seis checks, que ya pasaron en el PR hacia `develop`, ejecuta plan, costo y revisión con las llaves de producción, y marca todas las raíces como protegidas. Los PR de forks no reciben secrets ni IA.
+**`pull-request.yml`**: `discover` → `fmt` · `python` (ruff, mypy) · `validate` · `tflint` · `checkov` (módulos afectados) · `tests` · `contract` → `plan` por cada raíz afectada (llama a `terraform.yml`, solo lectura) → `review` (comentario). Un PR hacia la rama por defecto (producción) omite esos seis checks, que ya pasaron en el PR hacia `develop`, ejecuta plan, costo y revisión con las llaves de producción, y marca todas las raíces como protegidas. Los PR de forks no reciben secrets ni IA.
 
-**`terraform.yml`**: lo llaman los PR para un plan de solo lectura, y se ejecuta a mano para planificar o aplicar una raíz (`gh workflow run`). **Fusionar un pull request nunca toca AWS**: desplegar es siempre una ejecución manual y explícita.
+**`terraform.yml`**: lo llaman los PR para un plan de solo lectura, y se ejecuta a mano para planificar o aplicar una raíz (`gh workflow run`). **Fusionar un pull request nunca toca AWS**: desplegar es siempre una ejecución manual y explícita, y solo desde una rama que un ambiente nombre.
+
+Ambos workflows: las actions están fijadas por SHA de commit (Dependabot las mantiene al día), cada job tiene un timeout y un push nuevo a un pull request cancela su ejecución en curso. Un `apply` nunca se cancela: las ejecuciones de una misma raíz hacen fila.
 
 ## El reviewer
 
 `tools`: hallazgos de los checks del contrato sobre el código (`rules/rules.yaml` + `rules/code_rules.py`) y de los checks sobre el plan y el costo; luego:
 
-- **Veredicto:** `REQUEST_CHANGES` cuando un hallazgo confirmado es HIGH o CRITICAL o falló un check externo (fmt, ruff y mypy, validate, TFLint, el contrato del repositorio); si no, `PASS`. Por ahora Checkov solo avisa. El riesgo es la mayor severidad encontrada. Un check omitido no es una falla.
+- **Veredicto:** `REQUEST_CHANGES` cuando un hallazgo confirmado es HIGH o CRITICAL o falló un check externo (fmt, ruff y mypy, tests, validate, TFLint, el contrato del repositorio); si no, `PASS`. Por ahora Checkov solo avisa. El riesgo es la mayor severidad encontrada. Un check omitido no es una falla.
 - **`PLAN-001`:** un plan que destruye o reemplaza un recurso con estado es CRITICAL en una raíz protegida (todas las raíces en un PR hacia producción) y HIGH en el resto.
 - **Comentario:** uno por PR, actualizado en el lugar. El encabezado es un recuadro de color (verde para PASS, rojo o amarillo para REQUEST_CHANGES) con la decisión y el riesgo, y una tabla con el ambiente, la cuenta AWS, el commit revisado y el enlace a la ejecución; luego ocho secciones: resumen de IA con Gemini, configuraciones afectadas, checks, plan de Terraform (con los reemplazos), costo, versiones, reglas del repositorio y decisión. El nombre de cada check y el plan de cada raíz enlazan al log del job que los ejecutó.
 
@@ -101,7 +103,7 @@ Aparte, las *Dependabot alerts* del repositorio avisan cuando una dependencia ti
 - Infracost puede no poner precio a recursos que no puede resolver en un plan (por ejemplo un Auto Scaling Group cuyo launch template se crea en el mismo plan); la sección de costo lista lo que no pudo valorar.
 - Las raíces se aplican en orden de ruta; las dependencias entre raíces no se modelan.
 - Producción es la rama por defecto del repositorio.
-- No hay tests unitarios de los módulos ni del reviewer: la corrección se apoya en `validate`, el contrato, el plan y las validaciones de los propios módulos. El Python del reviewer se revisa con ruff y mypy en cada PR.
+- Los tests (`tests/`) cubren el reviewer (cada regla, el veredicto, qué raíces alcanza una ejecución, la redacción de secretos) y los módulos que resuelven o validan algo. Se ejecutan solo en el pipeline, sin AWS ni secrets. Lo único que no cubren es el comportamiento de un `apply` real: ese se apoya en `validate`, el plan y las validaciones de los propios módulos.
 - La verificación de tags sobre los recursos del plan no se muestra en el comentario; los tags los exige `TAGS-001` sobre el código.
 
 ---

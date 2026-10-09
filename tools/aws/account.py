@@ -1,7 +1,8 @@
 """Which AWS account a branch uses, and the checks that stop a run on the wrong one.
 
 `main` uses its own keys; every other branch uses the develop keys. The keys are repository secrets named per branch
-(`AWS_ACCESS_KEY_ID_MAIN`, `AWS_ACCESS_KEY_ID_DEVELOP`...); common.yaml says which account id each pair must belong to.
+(`AWS_ACCESS_KEY_ID_MAIN`, `AWS_ACCESS_KEY_ID_DEVELOP`...); the account id each pair must belong to is a repository variable
+(`AWS_ACCOUNT_ID_MAIN`, `AWS_ACCOUNT_ID_DEVELOP`), so no account id is written in the repository.
 """
 from __future__ import annotations
 
@@ -13,6 +14,12 @@ from typing import Dict, Optional, Tuple
 def target_for(branch: str) -> str:
     """The key set a branch uses: "main" for the production branch, "develop" for everything else."""
     return "main" if branch == "main" else "develop"
+
+
+def expected_account(branch: str, env: Optional[Dict[str, str]] = None) -> str:
+    """The account id the keys of a branch must belong to: the repository variable AWS_ACCOUNT_ID_<DEVELOP|MAIN>. Empty when it is not set."""
+    env = dict(os.environ) if env is None else env
+    return env.get("AWS_ACCOUNT_ID_" + target_for(branch).upper(), "").strip()
 
 
 def credentials_for(target: str, env: Dict[str, str]) -> Tuple[Optional[Dict[str, str]], Optional[str]]:

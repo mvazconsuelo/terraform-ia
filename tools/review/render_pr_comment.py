@@ -398,7 +398,7 @@ def _header_section(review: Dict[str, Any], jobs: List[Dict[str, Any]]) -> List[
         where, account = "unknown (no target branch given)", "—"
     else:
         where = "`{}` ({})".format(target["branch"], target["environment"])
-        account = "`{}`".format(target["account"]) if target.get("account") else "not configured in `common.yaml`"
+        account = "`{}`".format(target["account"]) if target.get("account") else "not configured (repository variable `AWS_ACCOUNT_ID_…`)"
     run = "[open]({})".format(jobs[0]["url"].rsplit("/job/", 1)[0]) if jobs else "—"
     commit = review.get("commit")
     reviewed = _link("`{}`".format(commit["sha"]), commit.get("url") or None) if commit else "—"

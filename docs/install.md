@@ -14,7 +14,7 @@ A GitHub repository, one or two AWS accounts, Terraform ≥ 1.11 (S3 native stat
 git switch -c develop && git push -u origin develop
 ```
 
-Protect `main` (pull request required, status checks required): production applies run on the merge, so that protection is the gate.
+Protect `main` (pull request required, status checks required). Merging never touches AWS, but that protection is the gate for what reaches production.
 
 ## 2. `common.yaml`
 
@@ -75,12 +75,14 @@ gh secret set AWS_ACCESS_KEY_ID_DEVELOP
 
 Branch from `develop`, change something small and open a PR into `develop`. You get one check per concern, a read-only `plan` for each affected root, and a comment with the verdict, the plan, the cost and the environment it lands on. **Merging never touches AWS.** To deploy, run `terraform.yml` by hand (below); the first apply creates billable resources (Aurora, load balancer).
 
-Manual runs (the only way to deploy). `--ref` picks the branch, so the AWS account; the root must belong to an environment of that branch:
+Manual runs (the only way to deploy). `--ref` picks the branch, so the AWS keys and account. The branch must be named by an environment in `common.yaml` and the root must belong to it; a run from any other branch does nothing.
 
 ```bash
 gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=plan
 gh workflow run terraform.yml --ref develop -f root=infra-example/dev/web-demo -f mode=apply
 ```
+
+The same from GitHub: *Actions* → **terraform** in the left list (not *All workflows*, where the button does not show) → **Run workflow**. Pick the branch in *Use workflow from*, type the `root` and choose `mode`: `plan` is the default, `apply` must be chosen. The state bucket of that account must exist first (step 3).
 
 If no check appears on a PR, a workflow file is invalid: run `actionlint .github/workflows/*.yml`.
 

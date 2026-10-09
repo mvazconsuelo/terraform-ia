@@ -16,6 +16,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import yaml
 
+from ..aws.account import expected_account
+
 # Importing a checks module registers its checks (see rules/registry.py); the names are not used otherwise.
 from ..rules import code_rules as _code_rules  # noqa: F401
 from ..rules import inputs_rules as _inputs_rules  # noqa: F401
@@ -111,15 +113,12 @@ def decide(findings: List[Finding], checks: Optional[Dict[str, str]] = None) -> 
 def target_of(repo: Repo, branch: Optional[str], production: bool) -> Optional[Dict[str, Any]]:
     """Where this change lands: the target branch, whether that is production, and the last digits of the AWS account.
 
-    The account comes from the environment that names the branch in `terraform.environments` (common.yaml). `main` has its own
-    account; every other branch uses the develop one, exactly as the pipeline picks the keys."""
+    The account is the repository variable AWS_ACCOUNT_ID_<DEVELOP|MAIN>. `main` has its own account; every other branch uses the develop
+    one, exactly as the pipeline picks the keys."""
     if not branch:
         return None
-    try:
-        account = repo.account_of_branch("main" if branch == "main" else "develop")
-    except ValueError:
-        account = ""
-    not_configured = not account or account.startswith("<")     # "<dev-account-id>" is the placeholder
+    account = expected_account(branch)
+    not_configured = not account
     return {
         "branch": branch,
         "environment": "production" if production else "non-production",
