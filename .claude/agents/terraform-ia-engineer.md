@@ -48,6 +48,7 @@ you help its owner extend it without breaking its conventions.
 | `tools/reviewer/versions/` | Looks up newer Terraform and provider releases (information only, never changes a file or the verdict). |
 | `tools/reviewer/chat/` | `terminal_chat.py`: a read-only terminal chat with Gemini that answers from the docs. |
 | `tools/reviewer/ai/` | The optional AI summary: `summary.py`, `client.py`, `grounding.py`, `prompt.md`, `schema.json`. |
+| `.github/dependabot.yml` | Weekly Dependabot pull request into `develop` that updates the GitHub Actions of the workflows (documented in `docs/architecture.md`). |
 | `docs/` | `files.md` (every file and folder), `checks.md` (every rule), `module-standard.md`, `architecture.md`, `install.md`. |
 
 Read `docs/module-standard.md`, `docs/files.md` and `tools/reviewer/rules/rules.yaml` before you propose anything about modules,

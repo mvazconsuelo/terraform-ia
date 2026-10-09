@@ -15,7 +15,7 @@ Cada archivo y carpeta del repositorio: qué hace, para qué sirve y qué repres
 | `.claude/agents/terraform-ia-engineer.md` | El asistente del proyecto para Claude Code: sabe cómo se construyen aquí los módulos, las reglas, el código del reviewer y la documentación. Propone y espera tu aprobación, nunca ejecuta comandos y te da los comandos git para que los ejecutes tú. |
 | `tools/pyproject.toml` | Configuración de `ruff` y `mypy`, que el job `python` de cada PR ejecuta sobre el Python del reviewer. |
 | `.github/CODEOWNERS` | Quién revisa qué: GitHub pide la revisión del responsable en cada pull request que toque los workflows, el reviewer, `common.yaml`, los módulos, los ejemplos o la documentación. |
-| `.github/dependabot.yml` | Un pull request semanal que actualiza las GitHub Actions que usan los workflows, agrupadas en uno solo. |
+| `.github/dependabot.yml` | Dependabot: un pull request semanal **hacia `develop`** que actualiza las GitHub Actions que usan los workflows, agrupadas en uno solo. Ver [Actualización de dependencias](architecture.md#actualización-de-dependencias-dependabot). |
 | `.gitignore` | Deja fuera el state, los planes, el entorno de Python, el `backend.tf` que genera el pipeline y el historial del editor. |
 
 ## `.github/workflows/`: el pipeline
@@ -166,7 +166,7 @@ Una capa web en una VPC: un Application Load Balancer delante de un Auto Scaling
 | `files.md` | Este archivo. |
 | `checks.md` | Cada regla que aplica el reviewer: ID, severidad, qué detecta y dónde vive. |
 | `es/` | La misma documentación en español; el inglés es el idioma por defecto. |
-| `images/` | `hero.svg` y `architecture.svg`, usados por el README. Los logos del stack del diagrama vienen de [Simple Icons](https://simpleicons.org) (CC0); los nombres y marcas pertenecen a sus dueños. |
+| `images/` | `hero.svg` y `architecture.svg`, usados por el README, y `pr-review/`: capturas de un comentario de revisión real. Los logos del stack del diagrama vienen de [Simple Icons](https://simpleicons.org) (CC0); los nombres y marcas pertenecen a sus dueños. |
 
 ---
 
