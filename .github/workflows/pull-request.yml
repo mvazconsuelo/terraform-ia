@@ -79,7 +79,7 @@ jobs:
         run: python -m tools.ci.terraform_validate
 
   tflint:
-    name: tflint
+    name: TFLint
     if: github.base_ref != github.event.repository.default_branch
     runs-on: ubuntu-latest
     steps:
