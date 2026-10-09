@@ -83,6 +83,21 @@ Off by default (`ai.enabled`). It receives one sanitized payload (verdict, affec
 
 Every file and what it is for: [What each file is](files.md). Every rule: [The checks](checks.md).
 
+## Dependency updates (Dependabot)
+
+The workflows run third-party code (GitHub Actions) with your token and secrets, so they must not fall behind. Dependabot, configured in
+[`.github/dependabot.yml`](../.github/dependabot.yml), opens **one pull request a week into `develop`** that raises the versions of the
+actions in the workflows. It never merges anything and never touches Terraform or the provider versions of the modules.
+
+When one arrives:
+- Read it. A **major** bump (for example `checkout` 4 to 7) can change how the pipeline behaves.
+- The usual checks run on it; merge it only if they pass. It reaches `main` later, like any change, with the next release pull request.
+- Its comment says "AI summary unavailable / `GEMINI_API_KEY` is not set": Dependabot pull requests do not receive the repository secrets. The
+  rest of the review is valid.
+- Comment `@dependabot rebase` to refresh it, or `@dependabot close` to dismiss it.
+
+Separately, the *Dependabot alerts* of the repository warn when a dependency has a known vulnerability.
+
 ## Known limits
 
 - Checkov runs with `--soft-fail` until its findings on the modules are triaged.

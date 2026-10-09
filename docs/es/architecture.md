@@ -83,6 +83,21 @@ Apagada por defecto (`ai.enabled`). Recibe un único payload saneado (veredicto,
 
 Cada archivo y para qué sirve: [Qué es cada archivo](files.md). Cada regla: [Los checks](checks.md).
 
+## Actualización de dependencias (Dependabot)
+
+Los workflows ejecutan código de terceros (GitHub Actions) con tu token y tus secrets, así que no deben quedarse atrás. Dependabot,
+configurado en [`.github/dependabot.yml`](../../.github/dependabot.yml), abre **un pull request por semana hacia `develop`** que sube las
+versiones de las acciones de los workflows. Nunca fusiona nada y nunca toca Terraform ni las versiones de providers de los módulos.
+
+Cuando llega uno:
+- Léelo. Un salto **mayor** (por ejemplo `checkout` de 4 a 7) puede cambiar cómo se comporta el pipeline.
+- Los checks de siempre corren sobre él; fusiónalo solo si pasan. Llega a `main` después, como cualquier cambio, con el siguiente PR de release.
+- Su comentario dice "AI summary unavailable / `GEMINI_API_KEY` is not set": los PR de Dependabot no reciben los secrets del repositorio.
+  El resto de la revisión es válido.
+- Comenta `@dependabot rebase` para refrescarlo, o `@dependabot close` para descartarlo.
+
+Aparte, las *Dependabot alerts* del repositorio avisan cuando una dependencia tiene una vulnerabilidad conocida.
+
 ## Límites conocidos
 
 - Checkov corre con `--soft-fail` hasta que se revisen sus hallazgos sobre los módulos.
