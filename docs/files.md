@@ -15,7 +15,7 @@ Every file and folder in the repository: what it does, what it is for and what i
 | `.claude/agents/terraform-ia-engineer.md` | The project's assistant for Claude Code: knows how modules, rules, reviewer code and docs are built here. It proposes and waits for approval, never runs commands, and gives you the git commands to run. |
 | `tools/pyproject.toml` | Settings for `ruff` and `mypy`, run on the reviewer's Python by the `python` job of every PR. |
 | `.github/CODEOWNERS` | Who reviews what: GitHub requests a review from the owner on every pull request that touches the workflows, the reviewer, `common.yaml`, the modules, the examples or the docs. |
-| `.github/dependabot.yml` | Weekly pull request that updates the GitHub Actions the workflows use, grouped in one. |
+| `.github/dependabot.yml` | Dependabot: one weekly pull request **into `develop`** that updates the GitHub Actions the workflows use, grouped in one. See [Dependency updates](architecture.md#dependency-updates-dependabot). |
 | `.gitignore` | Keeps out state, plans, the Python environment, the `backend.tf` the pipeline generates and editor history. |
 
 ## `.github/workflows/`: the pipeline
@@ -166,7 +166,7 @@ A web tier in a VPC: an Application Load Balancer in front of an Auto Scaling Gr
 | `files.md` | This file. |
 | `checks.md` | Every rule the reviewer enforces: ID, severity, what it flags and where it lives. |
 | `es/` | The same documentation in Spanish (`install`, `architecture`, `checks`, `files`, `module-standard`). English is the default language. |
-| `images/` | `hero.svg` and `architecture.svg`, used by the README. The stack logos in the diagram come from [Simple Icons](https://simpleicons.org) (CC0); the names and marks belong to their owners. |
+| `images/` | `hero.svg` and `architecture.svg`, used by the README, and `pr-review/`: screenshots of a real review comment. The stack logos in the diagram come from [Simple Icons](https://simpleicons.org) (CC0); the names and marks belong to their owners. |
 
 ---
 

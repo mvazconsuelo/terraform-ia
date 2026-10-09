@@ -4,11 +4,11 @@
 
 <br>
 
-![Terraform](https://img.shields.io/badge/terraform-%E2%89%A5_1.11-0B0F14?logo=terraform&logoColor=22D3EE&labelColor=0B0F14)
-![CI](https://img.shields.io/badge/ci-GitHub_Actions-0B0F14?logo=githubactions&logoColor=22D3EE&labelColor=0B0F14)
-![Modules](https://img.shields.io/badge/modules-reusable_AWS-0B0F14?logo=terraform&logoColor=22D3EE&labelColor=0B0F14)
-![Review](https://img.shields.io/badge/review-deterministic-0B0F14?logo=python&logoColor=22D3EE&labelColor=0B0F14)
-![AI](https://img.shields.io/badge/AI_summary-optional-0B0F14?logo=googlegemini&logoColor=22D3EE&labelColor=0B0F14)
+<img alt="Terraform" src="https://img.shields.io/badge/terraform-%E2%89%A5_1.11-0B0F14?logo=terraform&logoColor=22D3EE&labelColor=0B0F14" height="28">
+<img alt="CI" src="https://img.shields.io/badge/ci-GitHub_Actions-0B0F14?logo=githubactions&logoColor=22D3EE&labelColor=0B0F14" height="28">
+<img alt="Modules" src="https://img.shields.io/badge/modules-reusable_AWS-0B0F14?logo=terraform&logoColor=22D3EE&labelColor=0B0F14" height="28">
+<img alt="Review" src="https://img.shields.io/badge/review-deterministic-0B0F14?logo=python&logoColor=22D3EE&labelColor=0B0F14" height="28">
+<img alt="AI" src="https://img.shields.io/badge/AI_summary-Gemini-0B0F14?logo=googlegemini&logoColor=22D3EE&labelColor=0B0F14" height="28">
 
 English · [Español](README.es.md)
 
@@ -40,6 +40,35 @@ No folder names are assumed: it works the same for `infra/web`, `terraform/netwo
 | **AI summary** | One text, schema-validated and grounded: every resource, file and price it mentions is checked against the evidence. Off by default; a failing model never changes the result. |
 | **Modules** | Reusable AWS modules, each with a README and typed, validated inputs. |
 
+## What the review looks like
+
+Every pull request gets one comment like this, updated on each push. The decision comes from code; the Gemini summary only explains it.
+
+<img src="docs/images/pr-review/1-decision-and-summary.png" alt="The review comment: the decision box, the environment, the reviewed commit and the AI Gemini summary" width="100%">
+
+<details>
+<summary><b>See the rest of the comment</b>: roots, checks, plan, cost, versions, rules and decision</summary>
+
+<br>
+
+**Affected roots and checks.** Each check links to its job log.
+
+<img src="docs/images/pr-review/2-roots-and-checks.png" alt="Affected Terraform configurations and the checks table" width="100%">
+
+**Terraform plan.** Read-only, with a link to the job that produced it.
+
+<img src="docs/images/pr-review/3-plan.png" alt="The Terraform plan: resources to add, change and destroy" width="100%">
+
+**Cost and versions.** The Infracost estimate and the Terraform and provider versions in use.
+
+<img src="docs/images/pr-review/4-cost-and-versions.png" alt="The cost estimate and the versions table" width="100%">
+
+**Repository rules and decision.** Whether the rules passed, and what does and does not block.
+
+<img src="docs/images/pr-review/5-rules-and-decision.png" alt="Repository rules and the final decision" width="100%">
+
+</details>
+
 ## Modules
 
 Each module has its own README with usage, resources, inputs, outputs, lifecycle and cost. The [module standard](docs/module-standard.md) is the contract they follow.
@@ -65,7 +94,7 @@ Each module has its own README with usage, resources, inputs, outputs, lifecycle
 
 ## Stack
 
-<img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="AWS" src="https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazonwebservices&logoColor=white">&nbsp;<img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white">&nbsp;<img alt="Python" src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white">&nbsp;<img alt="TFLint" src="https://img.shields.io/badge/TFLint-5C4EE5?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="Checkov" src="https://img.shields.io/badge/Checkov-1F2A37?style=for-the-badge">&nbsp;<img alt="Infracost" src="https://img.shields.io/badge/Infracost-FF6B35?style=for-the-badge">&nbsp;<img alt="Gemini" src="https://img.shields.io/badge/Gemini_(optional)-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white">
+<img alt="Terraform" src="https://img.shields.io/badge/Terraform-844FBA?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="AWS" src="https://img.shields.io/badge/AWS-232F3E?style=for-the-badge&logo=amazonwebservices&logoColor=white">&nbsp;<img alt="GitHub Actions" src="https://img.shields.io/badge/GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white">&nbsp;<img alt="Python" src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white">&nbsp;<img alt="TFLint" src="https://img.shields.io/badge/TFLint-5C4EE5?style=for-the-badge&logo=terraform&logoColor=white">&nbsp;<img alt="Checkov" src="https://img.shields.io/badge/Checkov-1F2A37?style=for-the-badge">&nbsp;<img alt="Infracost" src="https://img.shields.io/badge/Infracost-FF6B35?style=for-the-badge">&nbsp;<img alt="Gemini" src="https://img.shields.io/badge/Gemini-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white">
 
 To run the pipeline on your own repository: [Setup](docs/install.md).
 
