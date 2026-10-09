@@ -3,7 +3,7 @@
 A Terraform module engineering platform: reusable AWS modules (`modules/`), example roots (`infra-example/`) and a deterministic
 pull-request reviewer (`tools/`). The reviewer's AI summary (Gemini) is optional and only explains the evidence.
 
-This file is the single place for the project's conventions. The agent `terraform-ia-engineer` and the skills `new-module`,
+This file is the single place for the project's conventions (how a person starts Claude Code with them is in `docs/claude.md`). The agent `terraform-ia-engineer` and the skills `new-module`,
 `new-rule` and `new-root` read it; change a convention here, not there.
 
 ## How to work in this repository
@@ -26,7 +26,7 @@ This file is the single place for the project's conventions. The agent `terrafor
   | Infrastructure values or a root (`inputs.yaml`, a new environment or stack) | `infra/<environment>-<what>` | `develop` for non-production, `main` for production | The owner runs `plan`, then `apply`, by hand |
 
   A branch name never says "deploy": merging deploys nothing. Production reaches `main` by a PR from `develop`, after it was applied in `dev`.
-- **Nothing secret in files or in the chat.** Never write or repeat a key or a token, and and never write an AWS account id in a file (it is the repository variable `AWS_ACCOUNT_ID_DEVELOP` or `AWS_ACCOUNT_ID_MAIN`). If the owner pastes a key, say it must be rotated.
+- **Nothing secret in files or in the chat.** Never write or repeat a key or a token, and never write an AWS account id in a file (it is the repository variable `AWS_ACCOUNT_ID_DEVELOP` or `AWS_ACCOUNT_ID_MAIN`). If the owner pastes a key, say it must be rotated.
 - **Docs are English with a Spanish copy** (`README.es.md`, `docs/es/*.md`, `infra-example/README.es.md`). Change both, always. File
   names, rule IDs and code stay untranslated. Docs are short and describe what exists; no "run it locally" sections, everything runs from a PR.
 - **Ask before outward or hard-to-reverse actions** (workflow or secret settings, deleting files). Read a file before you say what it holds.

@@ -51,7 +51,7 @@ lib/git_diff → what changed  ─►  terraform/ → what it affects  ─►  r
 | `review/` | The review itself: the verdict and the PR comment. |
 | `infracost/`, `aws/`, `versions/` | Reading the Infracost data; checking which AWS account the keys belong to; looking up newer Terraform and provider releases. |
 | `ai/` | The optional AI summary. |
-| `chat/` | A terminal chat with Gemini that answers questions about the project from its documentation (`terminal_chat.py`) and, with `/reviews`, from the review comments of recent pull requests: plans, costs, versions, findings by date (`pr_reviews.py`, read with `gh`). `format_terminal.py` renders the answers (install `rich` for tables). Read-only: no files, commands or AWS. Run it by hand with your own `GEMINI_API_KEY`: `python -m tools.chat.terminal_chat`. |
+| `chat/` | **Next, in development; not in the repository yet** (it is local and ignored by git). A read-only terminal chat with Gemini that will answer questions about the project from its documentation and, with `/reviews`, from the review comments of recent pull requests: plans, costs, versions, findings by date. |
 | `lib/` | Helpers every other folder can use, none of them a workflow step: `git_diff.py` (the files a PR changes: `git diff base...HEAD`, committed changes only), `github_actions.py` (writes `$GITHUB_OUTPUT` and `$GITHUB_STEP_SUMMARY`, reports errors, tells the mode and the branch) `workflow_jobs.py` (the jobs of the current run with a link to each one, so the comment can link to their logs) and `redact_secrets.py` (hides credentials in the text and values the AI receives). |
 
 ### `terraform/`: understanding the Terraform code and the plan
@@ -190,6 +190,7 @@ All the tests live here and **only the pipeline runs them** (job `tests`, step `
 | File | What it is |
 | --- | --- |
 | `install.md` | Setup, from an empty repository to the first PR. |
+| `claude.md` | How to work with Claude Code: what the repository gives it (agent, skills, hook, blocks), how to start it and the flow with the agent. |
 | `architecture.md` | How discovery, branches and accounts, state, the pipelines, the reviewer and the AI boundary work. |
 | `module-standard.md` | The contract every module follows. |
 | `files.md` | This file. |

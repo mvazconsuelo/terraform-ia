@@ -12,7 +12,7 @@
 
 [English](README.md) · Español
 
-**[Instalación](docs/es/install.md)** · **[Cómo funciona](docs/es/architecture.md)** · **[Qué es cada archivo](docs/es/files.md)** · **[Los checks](docs/es/checks.md)** · **[Estándar de módulos](docs/es/module-standard.md)**
+**[Instalación](docs/es/install.md)** · **[Cómo funciona](docs/es/architecture.md)** · **[Qué es cada archivo](docs/es/files.md)** · **[Los checks](docs/es/checks.md)** · **[Estándar de módulos](docs/es/module-standard.md)** · **[Claude Code](docs/es/claude.md)**
 
 </div>
 
@@ -36,7 +36,17 @@ No asume nombres de carpeta: funciona igual con `infra/web`, `terraform/networki
 1. Usá este repositorio (fork o clon). `main` es producción; creá `develop`.
 2. En [`common.yaml`](common.yaml) definí el `project` y cada ambiente: su `branch` y sus `roots`.
 3. Creá el bucket de state una vez por cuenta y región: `<project>-tfstate-<id de cuenta>-<región>`.
-4. Cargá los secrets: `AWS_ACCESS_KEY_ID_DEVELOP` / `AWS_SECRET_ACCESS_KEY_DEVELOP`, el par `..._MAIN` y `AWS_REGION` (`gh secret set <NOMBRE>`); y las variables `AWS_ACCOUNT_ID_DEVELOP` y `AWS_ACCOUNT_ID_MAIN` (`gh variable set <NOMBRE>`): la cuenta a la que debe pertenecer cada par de llaves, que no está escrita en el repositorio.
+4. Cargá los secrets y las variables (cada `gh secret set` te pide el valor, así que no queda en el historial de tu terminal):
+   ```bash
+   gh secret set AWS_ACCESS_KEY_ID_DEVELOP
+   gh secret set AWS_SECRET_ACCESS_KEY_DEVELOP
+   gh secret set AWS_ACCESS_KEY_ID_MAIN
+   gh secret set AWS_SECRET_ACCESS_KEY_MAIN
+   gh secret set AWS_REGION
+   gh variable set AWS_ACCOUNT_ID_DEVELOP --body "<id de la cuenta de dev>"
+   gh variable set AWS_ACCOUNT_ID_MAIN --body "<id de la cuenta de producción>"
+   ```
+   Las variables de cuenta dicen a qué cuenta de AWS debe pertenecer cada par de llaves, así que no se escribe ningún id de cuenta en el repositorio. Los secrets opcionales (costos, IA) están en [Instalación](docs/es/install.md).
 
 **Usar**:
 
@@ -50,7 +60,7 @@ No asume nombres de carpeta: funciona igual con `infra/web`, `terraform/networki
    O en GitHub: *Actions* → **terraform** → **Run workflow**, eligiendo la rama, la raíz y el `mode` (ver [instalación](docs/es/install.md#5-abre-un-pr)).
 4. Producción: un pull request de `develop` hacia `main`, y los mismos dos comandos con `--ref main` y la raíz de prod.
 
-Para ir más lejos: [agregar un ambiente](infra-example/README.es.md#agregar-un-ambiente) · [escribir un módulo](docs/es/module-standard.md) · [agregar una regla](docs/es/checks.md).
+Para ir más lejos: [agregar un ambiente](infra-example/README.es.md#agregar-un-ambiente) · [escribir un módulo](docs/es/module-standard.md) · [agregar una regla](docs/es/checks.md). Para que Claude Code lo haga por vos, con una propuesta primero y los tests incluidos: [Claude Code](docs/es/claude.md).
 
 ## Puntos clave
 
@@ -130,6 +140,8 @@ Para ejecutar el pipeline en tu propio repositorio: [Instalación](docs/es/insta
 
 > [!NOTE]
 > Los planes, los checks y el comentario del PR ya se ejecutaron en GitHub. El `terraform apply` (manual) todavía no se validó de punta a punta.
+>
+> **Lo próximo, en desarrollo:** un chat de terminal con Gemini que responde preguntas sobre el proyecto y sus reviews recientes.
 
 <details>
 <summary><b>Estructura del repositorio</b></summary>
