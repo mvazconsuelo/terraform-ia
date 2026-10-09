@@ -12,7 +12,7 @@
 
 English · [Español](README.es.md)
 
-**[Setup](docs/install.md)** · **[How it works](docs/architecture.md)** · **[What each file is](docs/files.md)** · **[The checks](docs/checks.md)** · **[Module standard](docs/module-standard.md)**
+**[Setup](docs/install.md)** · **[How it works](docs/architecture.md)** · **[What each file is](docs/files.md)** · **[The checks](docs/checks.md)** · **[Module standard](docs/module-standard.md)** · **[Claude Code](docs/claude.md)**
 
 </div>
 
@@ -36,7 +36,17 @@ No folder names are assumed: it works the same for `infra/web`, `terraform/netwo
 1. Use this repository (fork or clone). `main` is production; create `develop`.
 2. In [`common.yaml`](common.yaml) set the `project` and each environment: its `branch` and its `roots`.
 3. Create the state bucket once per account and region: `<project>-tfstate-<account id>-<region>`.
-4. Add the secrets: `AWS_ACCESS_KEY_ID_DEVELOP` / `AWS_SECRET_ACCESS_KEY_DEVELOP`, the `..._MAIN` pair, and `AWS_REGION` (`gh secret set <NAME>`); and the variables `AWS_ACCOUNT_ID_DEVELOP` and `AWS_ACCOUNT_ID_MAIN` (`gh variable set <NAME>`): the account each pair of keys must belong to, which is not written in the repository.
+4. Add the secrets and the variables (each `gh secret set` asks for its value, so it never lands in your shell history):
+   ```bash
+   gh secret set AWS_ACCESS_KEY_ID_DEVELOP
+   gh secret set AWS_SECRET_ACCESS_KEY_DEVELOP
+   gh secret set AWS_ACCESS_KEY_ID_MAIN
+   gh secret set AWS_SECRET_ACCESS_KEY_MAIN
+   gh secret set AWS_REGION
+   gh variable set AWS_ACCOUNT_ID_DEVELOP --body "<dev account id>"
+   gh variable set AWS_ACCOUNT_ID_MAIN --body "<production account id>"
+   ```
+   The account variables say which AWS account each pair of keys must belong to, so no account id is written in the repository. The optional secrets (cost, AI) are in [Setup](docs/install.md).
 
 **Use**:
 
@@ -50,7 +60,7 @@ No folder names are assumed: it works the same for `infra/web`, `terraform/netwo
    Or in GitHub: *Actions* → **terraform** → **Run workflow**, choosing the branch, the root and `mode` (see [install](docs/install.md#5-open-a-pr)).
 4. Production: a pull request from `develop` into `main`, then the same two commands with `--ref main` and the prod root.
 
-To go further: [add an environment](infra-example/README.md#adding-an-environment) · [write a module](docs/module-standard.md) · [add a rule](docs/checks.md).
+To go further: [add an environment](infra-example/README.md#adding-an-environment) · [write a module](docs/module-standard.md) · [add a rule](docs/checks.md). To let Claude Code do it for you, with a proposal first and the tests included: [Claude Code](docs/claude.md).
 
 ## Highlights
 
@@ -130,6 +140,8 @@ To run the pipeline on your own repository: [Setup](docs/install.md).
 
 > [!NOTE]
 > Plans, checks and the PR comment have run on GitHub. `terraform apply` (manual) has not been validated end to end yet.
+>
+> **Next, in development:** a terminal chat with Gemini that answers questions about the project and its recent reviews.
 
 <details>
 <summary><b>Repository layout</b></summary>

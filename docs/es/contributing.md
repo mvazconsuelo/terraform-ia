@@ -32,4 +32,4 @@ Para un problema de seguridad no abras un issue: mirá [`SECURITY.md`](security.
 ## Por dónde empezar
 
 Las convenciones están en [`CLAUDE.md`](../../CLAUDE.md). [`docs/es/module-standard.md`](module-standard.md) es el contrato de un módulo, [`docs/es/checks.md`](checks.md) lista todas las reglas y
-[`docs/es/files.md`](files.md) dice qué es cada archivo. El repositorio trae un agente y las skills `new-module`, `new-rule` y `new-root` para Claude Code que siguen todo esto.
+[`docs/es/files.md`](files.md) dice qué es cada archivo. El repositorio trae un agente y las skills `new-module`, `new-rule` y `new-root` para Claude Code que siguen todo esto: ver [`docs/es/claude.md`](claude.md).

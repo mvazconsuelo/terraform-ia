@@ -63,7 +63,20 @@ aws s3api put-public-access-block --bucket $B --public-access-block-configuratio
 Where to store them: `https://github.com/<owner>/<repo>/settings/secrets/actions` (replace `<owner>/<repo>`) · [GitHub docs on secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets) · [`gh secret set`](https://cli.github.com/manual/gh_secret_set).
 
 ```bash
+# Required: the keys of each branch and the region
 gh secret set AWS_ACCESS_KEY_ID_DEVELOP
+gh secret set AWS_SECRET_ACCESS_KEY_DEVELOP
+gh secret set AWS_ACCESS_KEY_ID_MAIN
+gh secret set AWS_SECRET_ACCESS_KEY_MAIN
+gh secret set AWS_REGION
+
+# Optional: the cost section and the AI summary
+gh secret set INFRACOST_API_KEY
+gh secret set GEMINI_API_KEY
+gh secret set GEMINI_MODEL
+gh secret set GEMINI_FALLBACK_MODEL
+
+gh secret list      # the names only, never the values
 ```
 
 `gh secret set` stores one secret per command and asks for its value, so it never lands in your shell history. Never commit keys; rotate any that were exposed.
@@ -83,7 +96,7 @@ Before `init` the pipeline asks AWS for the account of the keys and stops if it 
 gh variable set AWS_ACCOUNT_ID_DEVELOP --body "<dev account id>"
 gh variable set AWS_ACCOUNT_ID_MAIN --body "<production account id>"
 ```
-Or in `https://github.com/<owner>/<repo>/settings/variables/actions`. If a variable is missing, the run stops and says which one.
+Or in `https://github.com/<owner>/<repo>/settings/variables/actions`. Check them with `gh variable list`. If a variable is missing, the run stops and says which one.
 
 ## 6. Open a PR
 
